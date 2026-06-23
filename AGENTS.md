@@ -8,15 +8,24 @@ Mobile-friendly web dashboard for `~/Obsidian/Expenses/` — Flask API + Preact 
 cd ~/dev/expenses-web
 source venv/bin/activate
 python3 migrate.py      # rebuild DB from markdown
-python3 server.py       # http://192.168.18.200:5000
+python3 server.py       # http://localhost:5000 (debug=True)
 ```
+
+## Environment variables
+
+| Variable | Default (dev) | Service (prod) | Description |
+|---|---|---|---|
+| `FLASK_PORT` | `5000` | `6000` | Server port |
+| `FLASK_DEBUG` | `true` | `false` | Auto-reload + debugger |
+
+Dev uses defaults. Prod is configured via `expenses-web.service`.
 
 ## Key files
 
 - `config.py` — colors, categories, account definitions
 - `db.py` — SQLite schema + query functions
 - `migrate.py` — one-time markdown → SQLite import
-- `server.py` — Flask API (port 5000)
+- `server.py` — Flask API (port 5000 dev, 6000 prod)
 - `data/expenses.db` — the SQLite database
 - `static/app.js` — Preact frontend (CDN, no build step)
 - `static/style.css` — Tokyo Night theme
@@ -198,4 +207,4 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now expenses-web
 ```
 
-Note: Set `debug=False` in `server.py` before deploying.
+Note: Service runs on port 6000 with debug disabled (set via `FLASK_PORT` and `FLASK_DEBUG` env vars in the service file).

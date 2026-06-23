@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from flask import Flask, jsonify, request, send_from_directory
 
 from config import MONTHS
@@ -107,4 +109,6 @@ def api_add_transaction():
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("true", "1", "yes")
+    port = int(os.environ.get("FLASK_PORT", "5000"))
+    app.run(host="0.0.0.0", port=port, debug=debug)
