@@ -107,6 +107,63 @@ def api_add_transaction():
     return jsonify({"ok": True, "date": date_str, "category": category, "amount": amount, "account": account})
 
 
+@app.route("/api/mortgage")
+def api_mortgage():
+    conn = get_conn()
+
+    # Mortgage payments (this year only, newest first)
+    from datetime import date
+    current_year = date.today().year
+    rows = conn.execute(
+        """SELECT t.date, t.amount, t.description
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account='house' AND c.name='Housing:Mortgage' AND t.year=?
+           ORDER BY t.date DESC""",
+        (current_year,)
+    ).fetchall()
+    payments = [dict(r) for r in rows]
+
+    # All-time totals for loan progress
+    all_rows = conn.execute(
+        """SELECT SUM(t.amount) as total, COUNT(*) as count
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account='house' AND c.name='Housing:Mortgage'"""
+    ).fetchone()
+    total_paid = all_rows["total"] or 0
+    payments_count = all_rows["count"] or 0
+
+    # House account balance
+    bal = conn.execute(
+        """SELECT end_balance FROM accounts
+           WHERE account='house' AND end_balance IS NOT NULL
+           ORDER BY year DESC, month DESC LIMIT 1"""
+    ).fetchone()
+    house_balance = bal["end_balance"] if bal else 0
+
+    # All house transactions (for net calculation)
+    txns = conn.execute(
+        """SELECT t.amount, c.is_income
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account='house'"""
+    ).fetchall()
+    total_in = sum(t["amount"] for t in txns if t["is_income"])
+    total_out = sum(t["amount"] for t in txns if not t["is_income"])
+
+    conn.close()
+
+    return jsonify({
+        "payments": payments,
+        "total_paid": total_paid,
+        "monthly_payment": payments[0]["amount"] if payments else 0,
+        "payments_count": payments_count,
+        "house_balance": house_balance,
+        "total_in": total_in,
+        "total_out": total_out,
+        "original_loan": 915900000,
+        "start_date": "2023-12",
+    })
+
+
 if __name__ == "__main__":
     init_db()
     debug = os.environ.get("FLASK_DEBUG", "true").lower() in ("true", "1", "yes")

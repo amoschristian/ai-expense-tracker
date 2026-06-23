@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from config import CATEGORY_COLORS, MONTHS
+from config import CATEGORY_COLORS, INCOME_PARENTS, MONTHS, TRANSFER_PARENTS
 
 DB_PATH = Path(__file__).parent / "data" / "expenses.db"
 
@@ -22,7 +22,8 @@ def init_db() -> None:
             name TEXT NOT NULL UNIQUE,
             parent TEXT,
             color TEXT,
-            is_income BOOLEAN DEFAULT 0
+            is_income BOOLEAN DEFAULT 0,
+            is_transfer BOOLEAN DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS transactions (
@@ -49,15 +50,22 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account);
         CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id);
     """)
+    # Add is_transfer column to existing DBs
+    try:
+        conn.execute("ALTER TABLE categories ADD COLUMN is_transfer BOOLEAN DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.close()
 
 
 def seed_categories(conn: sqlite3.Connection) -> None:
     """Insert categories from config if not already present."""
     for name, color in CATEGORY_COLORS.items():
+        is_income = 1 if name in INCOME_PARENTS else 0
+        is_transfer = 1 if name in TRANSFER_PARENTS else 0
         conn.execute(
-            "INSERT OR IGNORE INTO categories (name, parent, color, is_income) VALUES (?, ?, ?, ?)",
-            (name, name, color, 1 if name in ("Income", "Investment") else 0),
+            "INSERT OR IGNORE INTO categories (name, parent, color, is_income, is_transfer) VALUES (?, ?, ?, ?, ?)",
+            (name, name, color, is_income, is_transfer),
         )
     conn.commit()
 
@@ -180,7 +188,7 @@ def get_categories() -> list[dict]:
     conn = get_conn()
     seed_categories(conn)
     rows = conn.execute(
-        "SELECT id, name, parent, color, is_income FROM categories ORDER BY name"
+        "SELECT id, name, parent, color, is_income, is_transfer FROM categories ORDER BY name"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

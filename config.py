@@ -37,6 +37,9 @@ CATEGORY_COLORS = {
     "Other": D,
 }
 
+INCOME_PARENTS = {"Income", "Investment"}
+TRANSFER_PARENTS = {"Transfer"}
+
 ACCOUNTS = {
     "bca": {"name": "BCA", "dir": "bca"},
     "house": {"name": "CIMB Niaga", "dir": "house"},

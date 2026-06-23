@@ -1,13 +1,12 @@
 # expenses-web
 
-Mobile-friendly web dashboard for `~/Obsidian/Expenses/` — Flask API + Preact frontend + SQLite database.
+Mobile-friendly web dashboard — Flask API + Preact frontend + SQLite database.
 
 ## Quick start
 
 ```bash
 cd ~/dev/expenses-web
 source venv/bin/activate
-python3 migrate.py      # rebuild DB from markdown
 python3 server.py       # http://localhost:5000 (debug=True)
 ```
 
@@ -24,7 +23,6 @@ Dev uses defaults. Prod is configured via `expenses-web.service`.
 
 - `config.py` — colors, categories, account definitions
 - `db.py` — SQLite schema + query functions
-- `migrate.py` — one-time markdown → SQLite import
 - `server.py` — Flask API (port 5000 dev, 6000 prod)
 - `data/expenses.db` — the SQLite database
 - `static/app.js` — Preact frontend (CDN, no build step)
@@ -38,14 +36,22 @@ Dev uses defaults. Prod is configured via `expenses-web.service`.
 ### Schema
 
 ```sql
+CREATE TABLE categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    parent TEXT,
+    color TEXT,
+    is_income BOOLEAN DEFAULT 0,
+    is_transfer BOOLEAN DEFAULT 0
+);
+
 CREATE TABLE transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,          -- "2026-06-15"
-    category TEXT NOT NULL,      -- "Food:Restaurant" (Parent:Subcategory)
+    category_id INTEGER REFERENCES categories(id),
     amount INTEGER NOT NULL,     -- 120000 (no decimals, Rupiah)
     description TEXT,            -- "Nasi Padang"
     account TEXT NOT NULL,       -- "bca" or "house"
-    is_income BOOLEAN NOT NULL,  -- 0 = expense, 1 = income
     year INTEGER NOT NULL,       -- 2026 (denormalized)
     month INTEGER NOT NULL       -- 6
 );
@@ -160,22 +166,12 @@ ORDER BY date;
 | GET | `/api/trend` | `account, year, month` | 6-month net cash flow |
 | GET | `/api/balance` | `account` | Latest balance |
 
-## Rebuilding the database
-
-```bash
-cd ~/dev/expenses-web
-source venv/bin/activate
-python3 migrate.py
-```
-
-This deletes all rows and re-imports from markdown files in `~/Obsidian/Expenses/`. Idempotent — safe to run multiple times.
-
 ## Accounts
 
-| Account ID | Display Name | Vault Directory |
-|---|---|---|
-| `bca` | BCA | `~/Obsidian/Expenses/bca/` |
-| `house` | CIMB Niaga | `~/Obsidian/Expenses/house/` |
+| Account ID | Display Name |
+|---|---|
+| `bca` | BCA |
+| `house` | CIMB Niaga |
 
 ## Category colors (Tokyo Night)
 

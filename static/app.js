@@ -28,7 +28,7 @@ async function fetchJSON(url) {
     return res.json();
 }
 
-function Header({ year, month, account, accounts, onPrev, onNext, onAccountChange }) {
+function Header({ year, month, account, accounts, onPrev, onNext, onAccountChange, showAccount }) {
     return html`
         <header>
             <div class="header-row">
@@ -36,9 +36,11 @@ function Header({ year, month, account, accounts, onPrev, onNext, onAccountChang
                 <h1>${MONTHS[month - 1]} ${year}</h1>
                 <button class="nav-btn" onClick=${onNext}>›</button>
             </div>
-            <select class="account-select" value=${account} onChange=${e => onAccountChange(e.target.value)}>
-                ${accounts.map(a => html`<option key=${a.id} value=${a.id}>${a.id.toUpperCase()}</option>`)}
-            </select>
+            ${showAccount !== false && html`
+                <select class="account-select" value=${account} onChange=${e => onAccountChange(e.target.value)}>
+                    ${accounts.map(a => html`<option key=${a.id} value=${a.id}>${a.id.toUpperCase()}</option>`)}
+                </select>
+            `}
         </header>
     `;
 }
@@ -167,9 +169,101 @@ function TransactionView({ data, categories }) {
     `;
 }
 
+function MortgageView({ data }) {
+    if (!data || !data.payments) {
+        return html`<section class="view"><div class="card empty">Loading mortgage data...</div></section>`;
+    }
+
+    const months_elapsed = (() => {
+        const start = new Date(data.start_date + '-01');
+        const now = new Date();
+        return (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    })();
+    const remaining = data.original_loan - data.total_paid;
+    const pct_paid = ((data.total_paid / data.original_loan) * 100).toFixed(1);
+    const pct_remaining = (100 - parseFloat(pct_paid)).toFixed(1);
+
+    return html`
+        <section class="view">
+            <div class="card balance-card">
+                <div class="label">House Account Balance</div>
+                <div class="value">${fmtRp(data.house_balance)}</div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat">
+                    <div class="label">Monthly Payment</div>
+                    <div class="value">${fmtRp(data.monthly_payment)}</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Total Paid</div>
+                    <div class="value blue">${fmtRp(data.total_paid)}</div>
+                </div>
+                <div class="stat">
+                    <div class="label">Payments</div>
+                    <div class="value">${data.payments_count}</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Loan Progress</div>
+                <div class="mortgage-progress">
+                    <div class="progress-header">
+                        <span>${pct_paid}% paid</span>
+                        <span>${pct_remaining}% remaining</span>
+                    </div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar paid" style=${{ width: pct_paid + '%' }}></div>
+                        <div class="progress-bar remaining" style=${{ width: pct_remaining + '%' }}></div>
+                    </div>
+                    <div class="progress-labels">
+                        <span>Paid: ${fmtRp(data.total_paid)}</span>
+                        <span>Remaining: ${fmtRp(remaining)}</span>
+                    </div>
+                </div>
+                <div class="mortgage-meta">
+                    <div class="meta-row">
+                        <span class="meta-label">Original Loan</span>
+                        <span class="meta-value">${fmtRp(data.original_loan)}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Start Date</span>
+                        <span class="meta-value">${data.start_date}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Months Elapsed</span>
+                        <span class="meta-value">${months_elapsed} months</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Payment History</div>
+                <div class="mortgage-payments">
+                    ${data.payments.map(p => {
+                        const d = new Date(p.date + 'T00:00:00');
+                        const label = MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+                        return html`
+                            <div class="payment-row" key=${p.date}>
+                                <span class="payment-date">${label}</span>
+                                <span class="payment-desc">${p.description}</span>
+                                <span class="payment-amt">${fmtRp(p.amount)}</span>
+                            </div>
+                        `;
+                    })}
+                </div>
+                <div class="mortgage-total">
+                    <span>Total</span>
+                    <span class="payment-amt">${fmtRp(data.total_paid)}</span>
+                </div>
+            </div>
+        </section>
+    `;
+}
+
 function TabBar({ active, onChange }) {
-    const tabs = ['summary', 'transactions'];
-    const labels = { summary: 'Summary', transactions: 'Transactions' };
+    const tabs = ['summary', 'transactions', 'mortgage'];
+    const labels = { summary: 'Summary', transactions: 'Transactions', mortgage: 'Mortgage' };
     return html`
         <nav id="tab-bar">
             ${tabs.map(t => html`
@@ -194,6 +288,7 @@ function App() {
     const [trendData, setTrendData] = useState(null);
     const [balance, setBalance] = useState(null);
     const [categories, setCategories] = useState([]);
+    const [mortgageData, setMortgageData] = useState(null);
 
     useEffect(() => {
         fetchJSON('/api/accounts').then(d => { if (d) setAccounts(d); });
@@ -213,6 +308,12 @@ function App() {
             setTrendData(t);
         });
     }, [year, month, account]);
+
+    useEffect(() => {
+        if (view === 'mortgage' && !mortgageData) {
+            fetchJSON('/api/mortgage').then(d => { if (d) setMortgageData(d); });
+        }
+    }, [view, mortgageData]);
 
     const prevMonth = useCallback(() => {
         setMonth(m => {
@@ -237,10 +338,12 @@ function App() {
             onPrev=${prevMonth}
             onNext=${nextMonth}
             onAccountChange=${setAccount}
+            showAccount=${view !== 'mortgage'}
         />
         <main id="content">
             ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} />`}
+            ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
         </main>
         <${TabBar} active=${view} onChange=${setView} />
     `;

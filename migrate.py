@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from config import ACCOUNTS, CATEGORY_COLORS, EXPENSES_ROOT, MONTHS
+from config import ACCOUNTS, CATEGORY_COLORS, EXPENSES_ROOT, INCOME_PARENTS, MONTHS, TRANSFER_PARENTS
 from db import get_conn, init_db, seed_categories
 
 
@@ -48,11 +48,12 @@ def ensure_category(conn, cat_name: str) -> int:
 
     parent = cat_name.split(":")[0] if ":" in cat_name else cat_name
     color = CATEGORY_COLORS.get(parent, "#a9b1d6")
-    is_income = 1 if parent in ("Income", "Investment") else 0
+    is_income = 1 if parent in INCOME_PARENTS else 0
+    is_transfer = 1 if parent in TRANSFER_PARENTS else 0
 
     conn.execute(
-        "INSERT INTO categories (name, parent, color, is_income) VALUES (?, ?, ?, ?)",
-        (cat_name, parent, color, is_income),
+        "INSERT INTO categories (name, parent, color, is_income, is_transfer) VALUES (?, ?, ?, ?, ?)",
+        (cat_name, parent, color, is_income, is_transfer),
     )
     return conn.execute("SELECT id FROM categories WHERE name=?", (cat_name,)).fetchone()["id"]
 
