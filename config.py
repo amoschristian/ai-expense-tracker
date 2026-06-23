@@ -27,7 +27,7 @@ CATEGORY_COLORS = {
     "Entertainment": P,
     "Health": R,
     "Administration": D,
-    "Insurance": D,
+    "Insurance": B,
     "Income": G,
     "Transfer": D,
     "Business": C,

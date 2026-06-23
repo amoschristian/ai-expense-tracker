@@ -1,60 +1,71 @@
 # expenses-web
 
-Mobile-friendly web dashboard for `~/Obsidian/Expenses/` — Flask API + Preact frontend + SQLite database.
+Mobile-friendly web dashboard — Flask API + Preact frontend + SQLite database.
 
 ## Quick start
 
 ```bash
 cd ~/dev/expenses-web
 source venv/bin/activate
-python3 migrate.py      # rebuild DB from markdown
-python3 server.py       # http://192.168.18.200:5000
+python3 server.py       # http://localhost:5000
 ```
 
 ## Key files
 
-- `config.py` — colors, category definitions, account definitions
+- `config.py` — colors, categories, account definitions
 - `db.py` — SQLite schema + query functions
-- `migrate.py` — markdown → SQLite import
 - `server.py` — Flask API (port 5000)
-- `data/expenses.db` — SQLite database (gitignored)
+- `data/expenses.db` — SQLite database
 - `static/app.js` — Preact frontend (CDN, no build step)
 - `static/style.css` — Tokyo Night theme
 - `expenses-web.service` — systemd unit file
 
 ## Database
 
-**Location:** `data/expenses.db` (gitignored — rebuild with `python3 migrate.py`)
+**Location:** `data/expenses.db`
 
 ### Schema
 
 ```sql
 CREATE TABLE categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,    -- "Food:Restaurant"
-    parent TEXT,                   -- "Food"
-    color TEXT,                    -- "#f7768e"
-    is_income BOOLEAN DEFAULT 0   -- 1 for Income/Investment
+    name TEXT NOT NULL UNIQUE,
+    parent TEXT,
+    color TEXT,
+    is_income BOOLEAN DEFAULT 0,
+    is_transfer BOOLEAN DEFAULT 0
 );
 
 CREATE TABLE transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL,            -- "2026-06-15"
+    date TEXT NOT NULL,
     category_id INTEGER REFERENCES categories(id),
-    amount INTEGER NOT NULL,       -- 120000 (Rupiah, no decimals)
-    description TEXT,              -- "Nasi Padang"
-    account TEXT NOT NULL,         -- "bca" or "house"
-    year INTEGER NOT NULL,         -- 2026 (denormalized)
-    month INTEGER NOT NULL         -- 6
+    amount INTEGER NOT NULL,
+    description TEXT,
+    account TEXT NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL
 );
 
 CREATE TABLE accounts (
-    account TEXT NOT NULL,         -- "bca" or "house"
+    account TEXT NOT NULL,
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
     start_balance INTEGER,
     end_balance INTEGER,
     PRIMARY KEY (account, year, month)
+);
+
+CREATE TABLE recurring_expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    category_id INTEGER REFERENCES categories(id),
+    account TEXT NOT NULL,
+    frequency TEXT NOT NULL DEFAULT 'monthly',
+    day_of_month INTEGER,
+    start_date TEXT NOT NULL,
+    end_date TEXT
 );
 ```
 
@@ -71,7 +82,6 @@ CREATE INDEX idx_tx_category ON transactions(category_id);
 ### Month summary
 
 ```sql
--- Total income/expense for a month (via categories.is_income)
 SELECT
     SUM(CASE WHEN c.is_income THEN t.amount ELSE 0 END) as income,
     SUM(CASE WHEN NOT c.is_income THEN t.amount ELSE 0 END) as expense
@@ -121,27 +131,21 @@ ORDER BY t.date DESC;
 |---|---|---|---|
 | GET | `/api/accounts` | — | `[{id:"bca"}, {id:"house"}]` |
 | GET | `/api/categories` | — | `[{id, name, parent, color, is_income}]` |
-| GET | `/api/month` | `account, year, month` | Summary + transactions (with category color) |
+| GET | `/api/month` | `account, year, month` | Summary + transactions |
 | GET | `/api/trend` | `account, year, month` | 6-month net cash flow |
 | GET | `/api/balance` | `account` | Latest end_balance |
-| POST | `/api/transaction` | `{date, category, amount, account, description?}` | Add new transaction |
-
-## Rebuilding the database
-
-```bash
-cd ~/dev/expenses-web
-source venv/bin/activate
-python3 migrate.py
-```
-
-Deletes all rows and re-imports from markdown files in `~/Obsidian/Expenses/`. Safe to run multiple times.
+| POST | `/api/transaction` | `{date, category, amount, account, description?}` | Add transaction |
+| GET | `/api/recurring` | — | List recurring expenses |
+| POST | `/api/recurring` | `{name, amount, category, account, frequency, day_of_month?, start_date}` | Add recurring |
+| PUT | `/api/recurring/<id>` | same as POST | Update recurring |
+| DELETE | `/api/recurring/<id>` | — | Delete recurring |
 
 ## Accounts
 
-| Account ID | Display Name | Vault Directory |
-|---|---|---|
-| `bca` | BCA | `~/Obsidian/Expenses/bca/` |
-| `house` | CIMB Niaga | `~/Obsidian/Expenses/house/` |
+| Account ID | Display Name |
+|---|---|
+| `bca` | BCA |
+| `house` | CIMB Niaga |
 
 ## Systemd deployment
 
@@ -150,5 +154,3 @@ sudo cp ~/dev/expenses-web/expenses-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now expenses-web
 ```
-
-Note: Set `debug=False` in `server.py` before deploying.

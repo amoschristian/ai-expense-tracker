@@ -6,14 +6,19 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from config import MONTHS
 from db import (
+    add_recurring_expense,
+    delete_recurring_expense,
     get_accounts,
     get_balance,
     get_categories,
     get_conn,
     get_month_summary,
+    get_recurring_expenses,
     get_trend,
     get_transactions,
     init_db,
+    seed_categories,
+    update_recurring_expense,
 )
 
 app = Flask(__name__, static_folder="static")
@@ -144,7 +149,7 @@ def api_mortgage():
     txns = conn.execute(
         """SELECT t.amount, c.is_income
            FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account='house'"""
+           WHERE t.account='house' AND c.parent != 'Transfer'"""
     ).fetchall()
     total_in = sum(t["amount"] for t in txns if t["is_income"])
     total_out = sum(t["amount"] for t in txns if not t["is_income"])
@@ -169,6 +174,47 @@ def api_mortgage():
         ],
         "tenor": 240,
     })
+
+
+@app.route("/api/recurring")
+def api_recurring_list():
+    return jsonify(get_recurring_expenses())
+
+
+@app.route("/api/recurring", methods=["POST"])
+def api_recurring_add():
+    data = request.get_json()
+    required = ["name", "amount", "category", "account", "start_date"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+
+    item_id = add_recurring_expense(data)
+    if item_id < 0:
+        return jsonify({"error": f"unknown category: {data['category']}"}), 400
+    return jsonify({"ok": True, "id": item_id})
+
+
+@app.route("/api/recurring/<int:item_id>", methods=["PUT"])
+def api_recurring_update(item_id):
+    data = request.get_json()
+    required = ["name", "amount", "category", "account", "start_date"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+
+    ok = update_recurring_expense(item_id, data)
+    if not ok:
+        return jsonify({"error": "not found or unknown category"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/recurring/<int:item_id>", methods=["DELETE"])
+def api_recurring_delete(item_id):
+    deleted = delete_recurring_expense(item_id)
+    if not deleted:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

@@ -64,6 +64,18 @@ CREATE TABLE accounts (
     end_balance INTEGER,         -- can be NULL
     PRIMARY KEY (account, year, month)
 );
+
+CREATE TABLE recurring_expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    category_id INTEGER REFERENCES categories(id),
+    account TEXT NOT NULL,
+    frequency TEXT NOT NULL DEFAULT 'monthly',
+    day_of_month INTEGER,
+    start_date TEXT NOT NULL,
+    end_date TEXT
+);
 ```
 
 ### Indexes
@@ -71,7 +83,7 @@ CREATE TABLE accounts (
 ```sql
 CREATE INDEX idx_tx_ym ON transactions(year, month);
 CREATE INDEX idx_tx_account ON transactions(account);
-CREATE INDEX idx_tx_category ON transactions(category);
+CREATE INDEX idx_tx_category ON transactions(category_id);
 ```
 
 ### Current data
@@ -165,6 +177,10 @@ ORDER BY date;
 | GET | `/api/month` | `account, year, month` | Summary + transactions |
 | GET | `/api/trend` | `account, year, month` | 6-month net cash flow |
 | GET | `/api/balance` | `account` | Latest balance |
+| GET | `/api/recurring` | — | List recurring expenses |
+| POST | `/api/recurring` | `{name, amount, category, account, frequency, day_of_month?, start_date}` | Add recurring |
+| PUT | `/api/recurring/<id>` | same as POST | Update recurring |
+| DELETE | `/api/recurring/<id>` | — | Delete recurring |
 
 ## Accounts
 
@@ -186,7 +202,7 @@ ORDER BY date;
 | Entertainment | Purple | `#bb9af7` |
 | Health | Red | `#f7768e` |
 | Administration | Dim | `#565f89` |
-| Insurance | Dim | `#565f89` |
+| Insurance | Orange | `#e0af68` |
 | Income | Green | `#9ece6a` |
 | Transfer | Dim | `#565f89` |
 | Business | Cyan | `#7dcfff` |
