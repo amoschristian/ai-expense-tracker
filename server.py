@@ -112,6 +112,53 @@ def api_add_transaction():
     return jsonify({"ok": True, "date": date_str, "category": category, "amount": amount, "account": account})
 
 
+@app.route("/api/transaction/<int:tx_id>", methods=["PUT"])
+def api_update_transaction(tx_id):
+    data = request.get_json()
+    required = ["category", "amount"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+
+    category = data["category"]
+    amount = int(data["amount"])
+    description = data.get("description", "")
+    date_str = data.get("date", "")
+
+    conn = get_conn()
+    seed_categories(conn)
+
+    existing = conn.execute("SELECT id FROM transactions WHERE id=?", (tx_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({"error": "transaction not found"}), 404
+
+    row = conn.execute("SELECT id FROM categories WHERE name=?", (category,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": f"unknown category: {category}"}), 400
+    category_id = row["id"]
+
+    if date_str:
+        try:
+            y, m = int(date_str[:4]), int(date_str[5:7])
+        except (ValueError, IndexError):
+            conn.close()
+            return jsonify({"error": "date must be YYYY-MM-DD"}), 400
+        conn.execute(
+            "UPDATE transactions SET date=?, category_id=?, amount=?, description=?, year=?, month=? WHERE id=?",
+            (date_str, category_id, amount, description, y, m, tx_id),
+        )
+    else:
+        conn.execute(
+            "UPDATE transactions SET category_id=?, amount=?, description=? WHERE id=?",
+            (category_id, amount, description, tx_id),
+        )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/mortgage")
 def api_mortgage():
     conn = get_conn()

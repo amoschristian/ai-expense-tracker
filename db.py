@@ -138,7 +138,7 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
 def get_transactions(account: str, year: int, month: int) -> list[dict]:
     conn = get_conn()
     rows = conn.execute(
-        """SELECT t.date, c.name as category, c.color, c.is_income, c.is_transfer, t.amount, t.description
+        """SELECT t.id, t.date, t.account, c.name as category, c.color, c.is_income, c.is_transfer, t.amount, t.description
            FROM transactions t JOIN categories c ON t.category_id=c.id
            WHERE t.account=? AND t.year=? AND t.month=?
            ORDER BY t.date DESC, t.id""",

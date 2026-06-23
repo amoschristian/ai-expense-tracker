@@ -10,6 +10,7 @@ export function RecurringView({ categories }) {
     const today = new Date().toISOString().slice(0, 10);
     const [form, setForm] = useState({ name: '', amount: '', category: '', account: 'bca', frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [errors, setErrors] = useState({});
 
     const load = useCallback(() => {
         fetchJSON('/api/recurring').then(d => { if (d) setItems(d); });
@@ -24,6 +25,7 @@ export function RecurringView({ categories }) {
         const t = new Date().toISOString().slice(0, 10);
         setForm({ name: '', amount: '', category: '', account: 'bca', frequency: 'monthly', day_of_month: '', start_date: t, end_date: '' });
         setEditing(null);
+        setErrors({});
     }
 
     function startEdit(item) {
@@ -40,11 +42,23 @@ export function RecurringView({ categories }) {
         setEditing(item.id);
     }
 
+    function clearError(field) {
+        if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+    }
+
     async function handleSubmit(e) {
         e.preventDefault();
-        const payload = { ...form, amount: parseInt(form.amount) };
-        if (!payload.name || !payload.amount || !payload.category) return;
+        const newErrors = {};
+        if (!form.name.trim()) newErrors.name = true;
+        if (!form.amount || parseInt(form.amount) <= 0) newErrors.amount = true;
+        if (!form.category) newErrors.category = true;
 
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        const payload = { ...form, amount: parseInt(form.amount) };
         const url = editing ? `/api/recurring/${editing}` : '/api/recurring';
         const method = editing ? 'PUT' : 'POST';
         const res = await fetch(url, {
@@ -83,18 +97,27 @@ export function RecurringView({ categories }) {
             <div class="card">
                 <div class="card-title">${editing ? 'Edit' : 'Add'} Recurring Expense</div>
                 <form class="recurring-form" onSubmit=${handleSubmit}>
-                    <input type="text" placeholder="Name" value=${form.name}
-                        onInput=${e => setForm({ ...form, name: e.target.value })} />
-                    <input type="number" placeholder="Amount" value=${form.amount}
-                        onInput=${e => setForm({ ...form, amount: e.target.value })} />
-                    <select value=${form.category} onChange=${e => setForm({ ...form, category: e.target.value })}>
-                        <option value="">Category</option>
-                        ${expenseCategories.map(c => {
-                            const isChild = c.name.includes(':');
-                            const label = isChild ? '- ' + getChildName(c.name) : c.name;
-                            return html`<option key=${c.name} value=${c.name}>${label}</option>`;
-                        })}
-                    </select>
+                    <div class="form-field${errors.name ? ' has-error' : ''}">
+                        <input type="text" placeholder="Name" value=${form.name}
+                            onInput=${e => { setForm({ ...form, name: e.target.value }); clearError('name'); }} />
+                        ${errors.name && html`<span class="field-error">Required</span>`}
+                    </div>
+                    <div class="form-field${errors.amount ? ' has-error' : ''}">
+                        <input type="number" placeholder="Amount" value=${form.amount}
+                            onInput=${e => { setForm({ ...form, amount: e.target.value }); clearError('amount'); }} />
+                        ${errors.amount && html`<span class="field-error">Required</span>`}
+                    </div>
+                    <div class="form-field${errors.category ? ' has-error' : ''}">
+                        <select value=${form.category} onChange=${e => { setForm({ ...form, category: e.target.value }); clearError('category'); }}>
+                            <option value="">Category</option>
+                            ${expenseCategories.map(c => {
+                                const isChild = c.name.includes(':');
+                                const label = isChild ? '- ' + getChildName(c.name) : c.name;
+                                return html`<option key=${c.name} value=${c.name}>${label}</option>`;
+                            })}
+                        </select>
+                        ${errors.category && html`<span class="field-error">Required</span>`}
+                    </div>
                     <select value=${form.account} onChange=${e => setForm({ ...form, account: e.target.value })}>
                         <option value="bca">BCA</option>
                         <option value="house">House</option>

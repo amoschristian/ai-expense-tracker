@@ -61,6 +61,10 @@ function App() {
         });
     }, []);
 
+    const reloadMonth = useCallback(() => {
+        fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d) setMonthData(d); });
+    }, [account, year, month]);
+
     return html`
         <${Header}
             year=${year}
@@ -74,7 +78,7 @@ function App() {
         />
         <main id="content">
             ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} />`}
-            ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} />`}
+            ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
             ${view === 'recurring' && html`<${RecurringView} categories=${categories} account=${account} />`}
         </main>

@@ -4,8 +4,12 @@ import { DEFAULT_COLOR, fmtRp, getCatColor, shortDate } from '/static/lib/utils.
 import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
 
-export function TransactionView({ data, categories }) {
+export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
+    const [editing, setEditing] = useState(null);
+    const [form, setForm] = useState({ category: '', amount: '', description: '', date: '' });
+    const [errors, setErrors] = useState({});
+
     if (!data || !data.transactions || !data.transactions.length) {
         return html`<section class="view"><div class="card empty">No transactions</div></section>`;
     }
@@ -19,6 +23,56 @@ export function TransactionView({ data, categories }) {
             String(t.amount).includes(q)
           )
         : data.transactions;
+
+    const expenseCategories = categories.filter(c => !c.is_income && !c.is_transfer);
+
+    function startEdit(t) {
+        setEditing(t);
+        setForm({
+            category: t.category,
+            amount: t.amount,
+            description: t.description || '',
+            date: t.date,
+        });
+        setErrors({});
+    }
+
+    function closeModal() {
+        setEditing(null);
+        setErrors({});
+    }
+
+    function clearError(field) {
+        if (errors[field]) setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+    }
+
+    async function handleSubmit(e) {
+        e.preventDefault();
+        const newErrors = {};
+        if (!form.category) newErrors.category = true;
+        if (!form.amount || parseInt(form.amount) <= 0) newErrors.amount = true;
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        const res = await fetch(`/api/transaction/${editing.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                category: form.category,
+                amount: parseInt(form.amount),
+                description: form.description,
+                date: form.date,
+            }),
+        });
+
+        if (res.ok) {
+            closeModal();
+            if (onUpdated) onUpdated();
+        }
+    }
 
     return html`
         <section class="view">
@@ -39,7 +93,7 @@ export function TransactionView({ data, categories }) {
                     const cls = t.is_income ? 'green' : '';
                     const displayName = getChildName(t.category);
                     return html`
-                        <div class="tx-row" key=${i}>
+                        <div class="tx-row${!t.is_income ? ' tx-editable' : ''}" key=${i} onClick=${() => { if (!t.is_income) startEdit(t); }}>
                             <div class="tx-left">
                                 <div class="tx-date">${shortDate(t.date)}</div>
                                 <div class="tx-cat" style=${{ color }}>
@@ -55,6 +109,55 @@ export function TransactionView({ data, categories }) {
                     `;
                 })}
             </div>
+
+            ${editing && html`
+                <div class="modal-overlay" onClick=${closeModal}>
+                    <div class="modal" onClick=${e => e.stopPropagation()}>
+                        <div class="modal-header">
+                            <span class="modal-title">Edit Transaction</span>
+                            <button class="btn-icon" onClick=${closeModal}>✕</button>
+                        </div>
+                        <form class="modal-form" onSubmit=${handleSubmit}>
+                            <div class="form-field">
+                                <label>Date</label>
+                                <input type="date" value=${form.date}
+                                    onInput=${e => setForm({ ...form, date: e.target.value })} />
+                            </div>
+                            <div class="modal-field">
+                                <label>Account</label>
+                                <div class="modal-value">${editing.account.toUpperCase()}</div>
+                            </div>
+                            <div class="form-field${errors.amount ? ' has-error' : ''}">
+                                <label>Amount</label>
+                                <input type="number" placeholder="Amount" value=${form.amount}
+                                    onInput=${e => { setForm({ ...form, amount: e.target.value }); clearError('amount'); }} />
+                                ${errors.amount && html`<span class="field-error">Required</span>`}
+                            </div>
+                            <div class="form-field${errors.category ? ' has-error' : ''}">
+                                <label>Category</label>
+                                <select value=${form.category} onChange=${e => { setForm({ ...form, category: e.target.value }); clearError('category'); }}>
+                                    <option value="">Select category</option>
+                                    ${expenseCategories.map(c => {
+                                        const isChild = c.name.includes(':');
+                                        const label = isChild ? '- ' + getChildName(c.name) : c.name;
+                                        return html`<option key=${c.name} value=${c.name}>${label}</option>`;
+                                    })}
+                                </select>
+                                ${errors.category && html`<span class="field-error">Required</span>`}
+                            </div>
+                            <div class="form-field">
+                                <label>Description (Optional)</label>
+                                <input type="textare" placeholder="Description (optional)" value=${form.description}
+                                    onInput=${e => setForm({ ...form, description: e.target.value })} />
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">Save</button>
+                                <button type="button" class="btn-secondary" onClick=${closeModal}>Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `}
         </section>
     `;
 }
