@@ -47,13 +47,6 @@ python3 server.py       # http://localhost:5000
 | PUT | `/api/recurring/<id>` | Update recurring expense |
 | DELETE | `/api/recurring/<id>` | Delete recurring expense |
 
-## Accounts
-
-| Account ID | Display Name |
-|---|---|
-| `bca` | BCA |
-| `house` | CIMB Niaga |
-
 ## Systemd deployment
 
 ```bash
