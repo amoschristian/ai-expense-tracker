@@ -159,8 +159,15 @@ def api_mortgage():
         "house_balance": house_balance,
         "total_in": total_in,
         "total_out": total_out,
-        "original_loan": 915900000,
-        "start_date": "2023-12",
+        "original_loan": 915959000,
+        "start_date": "Dec 2023",
+        "rate_schedule": [
+            {"from": "2024-01", "to": "2026-12", "months": "1–36", "rate": 4.30},
+            {"from": "2027-01", "to": "2029-12", "months": "37–72", "rate": 7.60},
+            {"from": "2030-01", "to": "2032-12", "months": "73–108", "rate": 9.60},
+            {"from": "2033-01", "to": "2043-12", "months": "109–240", "rate": 10.60},
+        ],
+        "tenor": 240,
     })
 
 
