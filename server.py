@@ -82,7 +82,6 @@ def api_add_transaction():
     amount = int(data["amount"])
     account = data["account"]
     description = data.get("description", "")
-    is_income = 1 if data.get("is_income", False) else 0
 
     try:
         y, m = int(date_str[:4]), int(date_str[5:7])
@@ -90,9 +89,16 @@ def api_add_transaction():
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
 
     conn = get_conn()
+    seed_categories(conn)
+    row = conn.execute("SELECT id FROM categories WHERE name=?", (category,)).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": f"unknown category: {category}"}), 400
+    category_id = row["id"]
+
     conn.execute(
-        "INSERT INTO transactions (date, category, amount, description, account, is_income, year, month) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (date_str, category, amount, description, account, is_income, y, m),
+        "INSERT INTO transactions (date, category_id, amount, description, account, year, month) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (date_str, category_id, amount, description, account, y, m),
     )
     conn.commit()
     conn.close()

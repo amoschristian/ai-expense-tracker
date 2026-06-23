@@ -124,6 +124,7 @@ ORDER BY t.date DESC;
 | GET | `/api/month` | `account, year, month` | Summary + transactions (with category color) |
 | GET | `/api/trend` | `account, year, month` | 6-month net cash flow |
 | GET | `/api/balance` | `account` | Latest end_balance |
+| POST | `/api/transaction` | `{date, category, amount, account, description?}` | Add new transaction |
 
 ## Rebuilding the database
 
