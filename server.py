@@ -18,6 +18,7 @@ from db import (
     get_transactions,
     init_db,
     seed_categories,
+    set_balance,
     update_recurring_expense,
 )
 
@@ -76,6 +77,17 @@ def api_balance():
     return jsonify(bal)
 
 
+@app.route("/api/balance", methods=["POST"])
+def api_set_balance():
+    data = request.get_json()
+    required = ["account", "year", "month", "balance"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+    set_balance(data["account"], int(data["year"]), int(data["month"]), int(data["balance"]))
+    return jsonify({"ok": True})
+
+
 @app.route("/api/transaction", methods=["POST"])
 def api_add_transaction():
     data = request.get_json()
@@ -112,6 +124,37 @@ def api_add_transaction():
     return jsonify({"ok": True, "date": date_str, "category": category, "amount": amount, "account": account})
 
 
+@app.route("/api/transactions/search")
+def api_search_transactions():
+    q = request.args.get("q", "")
+    account = request.args.get("account", "")
+    limit = int(request.args.get("limit", 50))
+
+    if not q:
+        return jsonify([])
+
+    conn = get_conn()
+    seed_categories(conn)
+
+    where = "WHERE t.description LIKE ?"
+    params = [f"%{q}%"]
+
+    if account:
+        where += " AND t.account = ?"
+        params.append(account)
+
+    rows = conn.execute(
+        f"""SELECT t.id, t.date, t.account, c.name as category, c.color, t.amount, t.description
+            FROM transactions t JOIN categories c ON t.category_id=c.id
+            {where}
+            ORDER BY t.date DESC
+            LIMIT ?""",
+        params + [limit],
+    ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 @app.route("/api/transaction/<int:tx_id>", methods=["PUT"])
 def api_update_transaction(tx_id):
     data = request.get_json()
@@ -132,7 +175,6 @@ def api_update_transaction(tx_id):
     if not existing:
         conn.close()
         return jsonify({"error": "transaction not found"}), 404
-
     row = conn.execute("SELECT id FROM categories WHERE name=?", (category,)).fetchone()
     if not row:
         conn.close()
@@ -154,6 +196,19 @@ def api_update_transaction(tx_id):
             "UPDATE transactions SET category_id=?, amount=?, description=? WHERE id=?",
             (category_id, amount, description, tx_id),
         )
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/transaction/<int:tx_id>", methods=["DELETE"])
+def api_delete_transaction(tx_id):
+    conn = get_conn()
+    existing = conn.execute("SELECT id FROM transactions WHERE id=?", (tx_id,)).fetchone()
+    if not existing:
+        conn.close()
+        return jsonify({"error": "transaction not found"}), 404
+    conn.execute("DELETE FROM transactions WHERE id=?", (tx_id,))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
@@ -184,19 +239,15 @@ def api_mortgage():
     total_paid = all_rows["total"] or 0
     payments_count = all_rows["count"] or 0
 
-    # House account balance
-    bal = conn.execute(
-        """SELECT end_balance FROM accounts
-           WHERE account='house' AND end_balance IS NOT NULL
-           ORDER BY year DESC, month DESC LIMIT 1"""
-    ).fetchone()
-    house_balance = bal["end_balance"] if bal else 0
+    # House account balance (computed on-the-fly)
+    house_bal = get_balance('house')
+    house_balance = house_bal["balance"] if house_bal else 0
 
     # All house transactions (for net calculation)
     txns = conn.execute(
         """SELECT t.amount, c.is_income
            FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account='house' AND c.parent != 'Transfer'"""
+           WHERE t.account='house' AND c.is_exclude=0"""
     ).fetchall()
     total_in = sum(t["amount"] for t in txns if t["is_income"])
     total_out = sum(t["amount"] for t in txns if not t["is_income"])

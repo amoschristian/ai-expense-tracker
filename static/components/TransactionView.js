@@ -6,6 +6,7 @@ import { CategoryIcon } from '/static/components/CategoryIcon.js';
 
 export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
+    const [catFilter, setCatFilter] = useState('');
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ category: '', amount: '', description: '', date: '' });
     const [errors, setErrors] = useState({});
@@ -15,16 +16,39 @@ export function TransactionView({ data, categories, onUpdated }) {
     }
 
     const q = query.toLowerCase();
-    const filtered = q
-        ? data.transactions.filter(t =>
-            t.date.includes(q) ||
+    const filtered = data.transactions.filter(t => {
+        if (catFilter) {
+            const isChild = catFilter.includes(':');
+            if (isChild) {
+                if (t.category !== catFilter) return false;
+            } else {
+                if (t.category !== catFilter && !t.category.startsWith(catFilter + ':')) return false;
+            }
+        }
+        if (!q) return true;
+        return t.date.includes(q) ||
             t.category.toLowerCase().includes(q) ||
             t.description.toLowerCase().includes(q) ||
-            String(t.amount).includes(q)
-          )
-        : data.transactions;
+            String(t.amount).includes(q);
+    });
 
-    const expenseCategories = categories.filter(c => !c.is_income && !c.is_transfer);
+    const expenseCategories = categories.filter(c => !c.is_income && !c.is_exclude);
+
+    const totalAmount = filtered.reduce((s, t) => s + (t.is_income ? t.amount : -t.amount), 0);
+
+    const uniqueCats = [...new Set(data.transactions.map(t => t.category))];
+    const childCats = uniqueCats.filter(c => c.includes(':'));
+    const parentCats = uniqueCats.filter(c => !c.includes(':'));
+    const impliedParents = [...new Set(childCats.map(c => c.split(':')[0]))];
+    const parents = [...new Set([...parentCats, ...impliedParents])].sort();
+    const childMap = {};
+    childCats.forEach(c => {
+        const p = c.split(':')[0];
+        if (!childMap[p]) childMap[p] = [];
+        childMap[p].push(c);
+    });
+    Object.values(childMap).forEach(arr => arr.sort());
+    const sortedCats = parents.flatMap(p => [p, ...(childMap[p] || [])]);
 
     function startEdit(t) {
         setEditing(t);
@@ -76,15 +100,27 @@ export function TransactionView({ data, categories, onUpdated }) {
 
     return html`
         <section class="view">
-            <div class="search-wrap">
+            <div class="tx-filters">
                 <input
                     type="text"
                     id="tx-search"
-                    placeholder="Search transactions..."
+                    placeholder="Search..."
                     autocomplete="off"
                     value=${query}
                     onInput=${e => setQuery(e.target.value)}
                 />
+                <select value=${catFilter} onChange=${e => setCatFilter(e.target.value)}>
+                    <option value="">All categories</option>
+                    ${sortedCats.map(c => {
+                        const isChild = c.includes(':');
+                        const label = isChild ? '- ' + getChildName(c) : c;
+                        return html`<option key=${c} value=${c}>${label}</option>`;
+                    })}
+                </select>
+            </div>
+            <div class="tx-summary">
+                <span class="tx-summary-count">${filtered.length} item${filtered.length !== 1 ? 's' : ''}</span>
+                <span class="tx-summary-total ${totalAmount >= 0 ? 'green' : 'red'}">${fmtRp(Math.abs(totalAmount))}</span>
             </div>
             <div class="tx-list">
                 ${filtered.map((t, i) => {

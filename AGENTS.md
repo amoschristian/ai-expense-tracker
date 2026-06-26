@@ -14,7 +14,7 @@ python3 server.py       # http://localhost:5000 (debug=True)
 
 | Variable | Default (dev) | Service (prod) | Description |
 |---|---|---|---|
-| `FLASK_PORT` | `5000` | `6000` | Server port |
+| `FLASK_PORT` | `5000` | `6001` | Server port |
 | `FLASK_DEBUG` | `true` | `false` | Auto-reload + debugger |
 
 Dev uses defaults. Prod is configured via `expenses-web.service`.
@@ -23,7 +23,7 @@ Dev uses defaults. Prod is configured via `expenses-web.service`.
 
 - `config.py` — colors, categories, account definitions
 - `db.py` — SQLite schema + query functions
-- `server.py` — Flask API (port 5000 dev, 6000 prod)
+- `server.py` — Flask API (port 5000 dev, 6001 prod)
 - `data/expenses.db` — the SQLite database
 - `static/app.js` — Preact frontend (CDN, no build step)
 - `static/style.css` — Tokyo Night theme
@@ -38,11 +38,11 @@ Dev uses defaults. Prod is configured via `expenses-web.service`.
 ```sql
 CREATE TABLE categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    parent TEXT,
-    color TEXT,
-    is_income BOOLEAN DEFAULT 0,
-    is_transfer BOOLEAN DEFAULT 0
+    name TEXT NOT NULL UNIQUE,      -- "Food:Restaurant"
+    parent TEXT,                     -- "Food"
+    color TEXT,                      -- "#f7768e"
+    is_income BOOLEAN DEFAULT 0,    -- 1 for Income, Investment
+    is_exclude BOOLEAN DEFAULT 0    -- 1 for Transfer (excluded from income/expense breakdowns)
 );
 
 CREATE TABLE transactions (
@@ -60,8 +60,7 @@ CREATE TABLE accounts (
     account TEXT NOT NULL,       -- "bca" or "house"
     year INTEGER NOT NULL,
     month INTEGER NOT NULL,
-    start_balance INTEGER,       -- can be NULL
-    end_balance INTEGER,         -- can be NULL
+    start_balance INTEGER,       -- can be NULL (first month is user-provided anchor)
     PRIMARY KEY (account, year, month)
 );
 
@@ -104,8 +103,14 @@ SELECT
 FROM transactions
 WHERE account = 'bca' AND year = 2026 AND month = 6;
 
--- Balance for a month
-SELECT start_balance, end_balance
+-- Balance for a month (computed on-the-fly)
+SELECT start_balance,
+       start_balance + (
+         SELECT SUM(CASE WHEN c.is_income THEN t.amount ELSE 0 END) -
+                SUM(CASE WHEN NOT c.is_income THEN t.amount ELSE 0 END)
+         FROM transactions t JOIN categories c ON t.category_id=c.id
+         WHERE t.account='bca' AND t.year=2026 AND t.month=6
+       ) as end_balance
 FROM accounts
 WHERE account = 'bca' AND year = 2026 AND month = 6;
 ```
@@ -219,4 +224,4 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now expenses-web
 ```
 
-Note: Service runs on port 6000 with debug disabled (set via `FLASK_PORT` and `FLASK_DEBUG` env vars in the service file).
+Note: Service runs on port 6001 with debug disabled (set via `FLASK_PORT` and `FLASK_DEBUG` env vars in the service file). Port 6000 is blocked by Chrome as an unsafe port (X11 reservation).

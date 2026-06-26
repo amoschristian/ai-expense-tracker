@@ -19,7 +19,7 @@ export function RecurringView({ categories }) {
     useEffect(() => { load(); }, [load]);
 
     const freqLabels = { monthly: 'Monthly', yearly: 'Yearly', weekly: 'Weekly' };
-    const expenseCategories = categories.filter(c => !c.is_income && !c.is_transfer);
+    const expenseCategories = categories.filter(c => !c.is_income && !c.is_exclude);
 
     function resetForm() {
         const t = new Date().toISOString().slice(0, 10);

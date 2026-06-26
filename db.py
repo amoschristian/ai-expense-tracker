@@ -23,7 +23,7 @@ def init_db() -> None:
             parent TEXT,
             color TEXT,
             is_income BOOLEAN DEFAULT 0,
-            is_transfer BOOLEAN DEFAULT 0
+            is_exclude BOOLEAN DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS transactions (
@@ -42,7 +42,6 @@ def init_db() -> None:
             year INTEGER NOT NULL,
             month INTEGER NOT NULL,
             start_balance INTEGER,
-            end_balance INTEGER,
             PRIMARY KEY (account, year, month)
         );
 
@@ -69,16 +68,18 @@ def seed_categories(conn: sqlite3.Connection) -> None:
     """Insert categories from config if not already present, sync colors."""
     for name, color in CATEGORY_COLORS.items():
         is_income = 1 if name in INCOME_PARENTS else 0
-        is_transfer = 1 if name in TRANSFER_PARENTS else 0
+        is_exclude = 1 if name in TRANSFER_PARENTS else 0
         conn.execute(
-            "INSERT OR IGNORE INTO categories (name, parent, color, is_income, is_transfer) VALUES (?, ?, ?, ?, ?)",
-            (name, name, color, is_income, is_transfer),
+            "INSERT OR IGNORE INTO categories (name, parent, color, is_income, is_exclude) VALUES (?, ?, ?, ?, ?)",
+            (name, name, color, is_income, is_exclude),
         )
         conn.execute(
-            "UPDATE categories SET color=?, is_income=?, is_transfer=? WHERE name=?",
-            (color, is_income, is_transfer, name),
+            "UPDATE categories SET color=?, is_income=?, is_exclude=? WHERE name=?",
+            (color, is_income, is_exclude, name),
         )
     conn.commit()
+
+
 
 
 def get_month_summary(account: str, year: int, month: int) -> dict | None:
@@ -86,7 +87,7 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
     seed_categories(conn)
 
     row = conn.execute(
-        "SELECT start_balance, end_balance FROM accounts WHERE account=? AND year=? AND month=?",
+        "SELECT start_balance FROM accounts WHERE account=? AND year=? AND month=?",
         (account, year, month),
     ).fetchone()
     if not row:
@@ -94,14 +95,13 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
         return None
 
     start_b = row["start_balance"] or 0
-    end_b = row["end_balance"] or 0
 
     incomes = conn.execute(
-        "SELECT SUM(amount) as total FROM transactions t JOIN categories c ON t.category_id=c.id WHERE account=? AND year=? AND month=? AND c.is_income=1 AND c.parent != 'Transfer'",
+        "SELECT SUM(amount) as total FROM transactions t JOIN categories c ON t.category_id=c.id WHERE account=? AND year=? AND month=? AND c.is_income=1 AND c.is_exclude=0",
         (account, year, month),
     ).fetchone()
     expenses = conn.execute(
-        "SELECT SUM(amount) as total FROM transactions t JOIN categories c ON t.category_id=c.id WHERE account=? AND year=? AND month=? AND c.is_income=0 AND c.parent != 'Transfer'",
+        "SELECT SUM(amount) as total FROM transactions t JOIN categories c ON t.category_id=c.id WHERE account=? AND year=? AND month=? AND c.is_income=0 AND c.is_exclude=0",
         (account, year, month),
     ).fetchone()
 
@@ -112,7 +112,7 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
         """SELECT c.name, c.color, SUM(t.amount) as total
            FROM transactions t JOIN categories c ON t.category_id=c.id
            WHERE t.account=? AND t.year=? AND t.month=? AND c.is_income=0
-             AND c.parent != 'Transfer'
+             AND c.is_exclude=0
            GROUP BY c.name
            ORDER BY total DESC""",
         (account, year, month),
@@ -127,7 +127,7 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
     return {
         "name": f"{MONTHS[month - 1]} {year}",
         "start": start_b,
-        "end": end_b,
+        "end": start_b + total_in - total_out,
         "income": total_in,
         "expense": total_out,
         "net": total_in - total_out,
@@ -138,10 +138,10 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
 def get_transactions(account: str, year: int, month: int) -> list[dict]:
     conn = get_conn()
     rows = conn.execute(
-        """SELECT t.id, t.date, t.account, c.name as category, c.color, c.is_income, c.is_transfer, t.amount, t.description
-           FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account=? AND t.year=? AND t.month=?
-           ORDER BY t.date DESC, t.id""",
+        """SELECT t.id, t.date, t.account, c.name as category, c.color, c.is_income, c.is_exclude, t.amount, t.description
+          FROM transactions t JOIN categories c ON t.category_id=c.id
+          WHERE t.account=? AND t.year=? AND t.month=?
+          ORDER BY t.date DESC, t.id""",
         (account, year, month),
     ).fetchall()
     conn.close()
@@ -154,12 +154,12 @@ def get_trend(account: str, year: int, month: int) -> list[dict]:
         """SELECT t.year, t.month,
                   SUM(CASE WHEN c.is_income THEN t.amount ELSE 0 END) -
                   SUM(CASE WHEN NOT c.is_income THEN t.amount ELSE 0 END) as net
-           FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account=?
-             AND c.parent != 'Transfer'
-             AND (t.year * 100 + t.month) BETWEEN ? AND ?
-           GROUP BY t.year, t.month
-           ORDER BY t.year, t.month""",
+          FROM transactions t JOIN categories c ON t.category_id=c.id
+          WHERE t.account=?
+             AND c.is_exclude=0
+            AND (t.year * 100 + t.month) BETWEEN ? AND ?
+          GROUP BY t.year, t.month
+          ORDER BY t.year, t.month""",
         (account, (year - 1) * 100 + month, year * 100 + month),
     ).fetchall()
     conn.close()
@@ -167,24 +167,88 @@ def get_trend(account: str, year: int, month: int) -> list[dict]:
 
 
 def get_balance(account: str) -> dict | None:
+    """Get current balance by computing from first month's start_balance + all transactions."""
     conn = get_conn()
-    row = conn.execute(
-        """SELECT account, year, month, end_balance
+    
+    # Find the earliest month
+    anchor = conn.execute(
+        """SELECT year, month, start_balance
            FROM accounts
-           WHERE account=? AND end_balance IS NOT NULL
-           ORDER BY year DESC, month DESC
+           WHERE account=?
+           ORDER BY year, month
            LIMIT 1""",
         (account,),
     ).fetchone()
-    conn.close()
-    if not row:
+    if not anchor:
+        conn.close()
         return None
+    
+    anchor_y, anchor_m = anchor["year"], anchor["month"]
+    start_b = anchor["start_balance"] or 0
+    
+    # Sum ALL transactions from that month onward
+    result = conn.execute(
+        """SELECT
+             SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
+             SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account=?
+             AND (t.year * 100 + t.month) >= ?""",
+        (account, anchor_y * 100 + anchor_m),
+    ).fetchone()
+    net = result["net"] or 0
+    
+    # Latest month for display
+    latest = conn.execute(
+        """SELECT year, month FROM accounts
+           WHERE account=? ORDER BY year DESC, month DESC LIMIT 1""",
+        (account,),
+    ).fetchone()
+    
+    conn.close()
     return {
-        "account": row["account"],
-        "balance": row["end_balance"],
-        "year": row["year"],
-        "month": row["month"],
+        "account": account,
+        "balance": start_b + net,
+        "year": latest["year"],
+        "month": latest["month"],
     }
+
+
+def set_balance(account: str, year: int, month: int, balance: int) -> None:
+    """Set the bank-confirmed current balance. Computes the correct start_balance for the first month."""
+    conn = get_conn()
+    
+    # Find the earliest month
+    first = conn.execute(
+        "SELECT year, month FROM accounts WHERE account=? ORDER BY year, month LIMIT 1",
+        (account,),
+    ).fetchone()
+    
+    if first:
+        # Sum all transactions from first month to the confirmed month
+        result = conn.execute(
+            """SELECT
+                 SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
+                 SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
+               FROM transactions t JOIN categories c ON t.category_id=c.id
+               WHERE t.account=?
+                 AND (t.year * 100 + t.month) >= ?
+                 AND (t.year * 100 + t.month) <= ?""",
+            (account, first["year"] * 100 + first["month"], year * 100 + month),
+        ).fetchone()
+        net = result["net"] or 0
+        
+        # start_balance = current_balance - net_transactions
+        correct_start = balance - net
+        
+        # Update the first month's start_balance
+        conn.execute(
+            "UPDATE accounts SET start_balance=? WHERE account=? AND year=? AND month=?",
+            (correct_start, account, first["year"], first["month"]),
+        )
+    
+    conn.commit()
+    conn.close()
 
 
 def get_accounts() -> list[dict]:
@@ -200,7 +264,7 @@ def get_categories() -> list[dict]:
     conn = get_conn()
     seed_categories(conn)
     rows = conn.execute(
-        "SELECT id, name, parent, color, is_income, is_transfer FROM categories ORDER BY name"
+        "SELECT id, name, parent, color, is_income, is_exclude FROM categories ORDER BY name"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

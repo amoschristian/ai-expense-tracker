@@ -345,13 +345,16 @@ main {
     white-space: nowrap;
 }
 
-/* Search */
-.search-wrap {
+/* Transaction filters */
+.tx-filters {
+    display: flex;
+    gap: 8px;
     margin-bottom: 14px;
 }
 
-#tx-search {
-    width: 100%;
+.tx-filters input {
+    flex: 1;
+    min-width: 0;
     background: var(--surface);
     border: none;
     color: var(--text);
@@ -363,9 +366,64 @@ main {
     box-shadow: var(--shadow);
     transition: box-shadow 0.15s;
 }
-#tx-search::placeholder { color: var(--dim); }
-#tx-search:focus {
+.tx-filters input::placeholder { color: var(--dim); }
+.tx-filters input:focus {
     box-shadow: var(--shadow-lg), 0 0 0 2px rgba(122, 162, 247, 0.25);
+}
+
+.tx-filters select {
+    background: var(--bg);
+    border: none;
+    color: var(--text);
+    padding: 12px 32px 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    box-shadow: var(--shadow);
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23565f89'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3Csvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    transition: box-shadow 0.15s;
+}
+.tx-filters select:focus {
+    box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.25);
+}
+
+/* Transaction summary */
+.tx-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    margin-bottom: 8px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.tx-summary-count {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tx-summary-total {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 700;
+}
+
+.tx-summary-income {
+    color: var(--green);
 }
 
 /* Transactions */

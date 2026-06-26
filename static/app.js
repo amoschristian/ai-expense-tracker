@@ -77,7 +77,7 @@ function App() {
             showAccount=${view !== 'mortgage' && view !== 'recurring'}
         />
         <main id="content">
-            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} />`}
+            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
             ${view === 'recurring' && html`<${RecurringView} categories=${categories} account=${account} />`}
