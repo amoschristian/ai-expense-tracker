@@ -267,7 +267,7 @@ main {
 /* Category bars */
 .cat-row {
     display: grid;
-    grid-template-columns: 1fr auto 70px auto;
+    grid-template-columns: 120px 120px 200px auto;
     align-items: center;
     gap: 10px;
     padding: 7px 0;
@@ -296,7 +296,7 @@ main {
     background: rgba(59, 66, 97, 0.4);
     border-radius: 3px;
     overflow: hidden;
-    width: 70px;
+    width: 200px;
 }
 .cat-bar {
     height: 100%;
@@ -314,7 +314,7 @@ main {
 /* Trend */
 .trend-row {
     display: grid;
-    grid-template-columns: 38px 1fr auto;
+    grid-template-columns: 38px auto 120px;
     align-items: center;
     gap: 12px;
     padding: 9px 0;
@@ -328,15 +328,30 @@ main {
     color: var(--dim);
 }
 .trend-bar-wrap {
+    position: relative;
     height: 10px;
     background: rgba(59, 66, 97, 0.4);
     border-radius: 5px;
     overflow: hidden;
 }
+.trend-bar-wrap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: rgba(169, 177, 214, 0.25);
+    transform: translateX(-0.5px);
+    pointer-events: none;
+    z-index: 1;
+}
 .trend-bar {
     height: 100%;
     border-radius: 5px;
-    min-width: 2px;
+    min-width: 1px;
+    position: relative;
+    z-index: 2;
 }
 .trend-amt {
     font-size: 0.82rem;
@@ -801,7 +816,7 @@ main {
 
 .weekly-row {
     display: grid;
-    grid-template-columns: 100px 1fr auto;
+    grid-template-columns: 70px 1fr 100px;
     align-items: center;
     gap: 10px;
 }

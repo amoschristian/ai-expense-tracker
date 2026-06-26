@@ -8,10 +8,12 @@ from config import MONTHS
 from db import (
     add_recurring_expense,
     delete_recurring_expense,
+    ensure_month,
     get_accounts,
     get_balance,
     get_categories,
     get_conn,
+    get_month_end_balance,
     get_month_summary,
     get_recurring_expenses,
     get_trend,
@@ -106,7 +108,7 @@ def api_add_transaction():
         y, m = int(date_str[:4]), int(date_str[5:7])
     except (ValueError, IndexError):
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
-
+    ensure_month(account, y, m)
     conn = get_conn()
     seed_categories(conn)
     row = conn.execute("SELECT id FROM categories WHERE name=?", (category,)).fetchone()

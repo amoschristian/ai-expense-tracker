@@ -32,7 +32,7 @@ export function TransactionView({ data, categories, onUpdated }) {
             String(t.amount).includes(q);
     });
 
-    const expenseCategories = categories.filter(c => !c.is_income && !c.is_exclude);
+    const editCategories = categories.filter(c => !c.is_exclude);
 
     const totalAmount = filtered.reduce((s, t) => s + (t.is_income ? t.amount : -t.amount), 0);
 
@@ -129,7 +129,7 @@ export function TransactionView({ data, categories, onUpdated }) {
                     const cls = t.is_income ? 'green' : '';
                     const displayName = getChildName(t.category);
                     return html`
-                        <div class="tx-row${!t.is_income ? ' tx-editable' : ''}" key=${i} onClick=${() => { if (!t.is_income) startEdit(t); }}>
+                        <div class="tx-row tx-editable" key=${i} onClick=${() => startEdit(t)}>
                             <div class="tx-left">
                                 <div class="tx-date">${shortDate(t.date)}</div>
                                 <div class="tx-cat" style=${{ color }}>
@@ -173,7 +173,7 @@ export function TransactionView({ data, categories, onUpdated }) {
                                 <label>Category</label>
                                 <select value=${form.category} onChange=${e => { setForm({ ...form, category: e.target.value }); clearError('category'); }}>
                                     <option value="">Select category</option>
-                                    ${expenseCategories.map(c => {
+                                    ${editCategories.map(c => {
                                         const isChild = c.name.includes(':');
                                         const label = isChild ? '- ' + getChildName(c.name) : c.name;
                                         return html`<option key=${c.name} value=${c.name}>${label}</option>`;

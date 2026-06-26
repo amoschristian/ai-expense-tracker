@@ -80,9 +80,72 @@ def seed_categories(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def get_month_end_balance(account: str, year: int, month: int) -> int:
+    """Single source of truth: end balance = start_balance + net transactions for a month."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT start_balance FROM accounts WHERE account=? AND year=? AND month=?",
+        (account, year, month),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return 0
+    start_b = row["start_balance"] or 0
+    net = conn.execute(
+        """SELECT
+             SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
+             SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account=? AND t.year=? AND t.month=?""",
+        (account, year, month),
+    ).fetchone()
+    conn.close()
+    return start_b + (net["net"] or 0)
+
+
+def ensure_month(account: str, year: int, month: int) -> None:
+    """Auto-create an accounts row for (account, year, month) if missing.
+
+    Computes start_balance from the previous month's end balance
+    (start_balance + net transactions). Falls back to 0 if no prior month exists.
+    """
+    conn = get_conn()
+    seed_categories(conn)
+    row = conn.execute(
+        "SELECT 1 FROM accounts WHERE account=? AND year=? AND month=?",
+        (account, year, month),
+    ).fetchone()
+    if row:
+        conn.close()
+        return
+
+    # Find the most recent prior month
+    prev = conn.execute(
+        """SELECT year, month, start_balance
+           FROM accounts
+           WHERE account=? AND (year*100+month) < ?
+           ORDER BY year DESC, month DESC LIMIT 1""",
+        (account, year * 100 + month),
+    ).fetchone()
+
+    if prev:
+        conn.close()
+        prev_end = get_month_end_balance(account, prev["year"], prev["month"])
+    else:
+        conn.close()
+        prev_end = 0
+
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO accounts (account, year, month, start_balance) VALUES (?, ?, ?, ?)",
+        (account, year, month, prev_end),
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_month_summary(account: str, year: int, month: int) -> dict | None:
+    ensure_month(account, year, month)
     conn = get_conn()
     seed_categories(conn)
 

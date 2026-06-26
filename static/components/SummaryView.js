@@ -17,7 +17,6 @@ export function SummaryView({ data, trend, balance, categories, account }) {
             <${BalanceCard} balance=${balance} />
             <${StatsRow} data=${data} account=${account} />
             <${BalanceTrend} data=${data} />
-            <${Cashflow} data=${data} />
             <${TopCategories} data=${data} categories=${categories} />
             <${WeeklySpending} transactions=${data.transactions} />
             <${CashFlowTrend} trend=${trend} />
