@@ -27,7 +27,7 @@ export function WeeklySpending({ transactions }) {
     }
 
     transactions.forEach(t => {
-        if (t.is_income) return;
+        if (t.is_income || t.is_exclude) return;
         const day = new Date(t.date + 'T00:00:00').getDate();
         const weekIdx = Math.floor((day - 1) / 7);
         if (weekIdx >= 0 && weekIdx < numWeeks) {

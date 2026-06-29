@@ -15,6 +15,7 @@ from db import (
     get_conn,
     get_month_end_balance,
     get_month_summary,
+    get_recurring_expense,
     get_recurring_expenses,
     get_trend,
     get_transactions,
@@ -306,6 +307,26 @@ def api_recurring_update(item_id):
     ok = update_recurring_expense(item_id, data)
     if not ok:
         return jsonify({"error": "not found or unknown category"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/recurring/<int:item_id>", methods=["PATCH"])
+def api_recurring_patch(item_id):
+    existing = get_recurring_expense(item_id)
+    if not existing:
+        return jsonify({"error": "not found"}), 404
+
+    data = request.get_json()
+    # Merge incoming fields over existing values
+    merged = {**existing, **data}
+    # Remove fields not expected by update function, add category
+    merged.pop("id", None)
+    merged.pop("color", None)
+    merged["category"] = data.get("category", existing["category"])
+
+    ok = update_recurring_expense(item_id, merged)
+    if not ok:
+        return jsonify({"error": "update failed or unknown category"}), 400
     return jsonify({"ok": True})
 
 

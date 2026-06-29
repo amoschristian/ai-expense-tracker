@@ -409,6 +409,47 @@ main {
     box-shadow: 0 0 0 2px rgba(122, 162, 247, 0.25);
 }
 
+/* Transaction date filters */
+.tx-date-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.tx-date-filters input[type="date"] {
+    flex: 1;
+    min-width: 0;
+    background: var(--surface);
+    border: none;
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-family: inherit;
+    outline: none;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.15s;
+    color-scheme: dark;
+}
+.tx-date-filters input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    cursor: pointer;
+}
+.tx-date-filters input[type="date"]:focus {
+    box-shadow: var(--shadow-lg), 0 0 0 2px rgba(122, 162, 247, 0.25);
+}
+
+.tx-date-sep {
+    color: var(--dim);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.tx-date-clear {
+    flex-shrink: 0;
+}
+
 /* Transaction summary */
 .tx-summary {
     display: flex;

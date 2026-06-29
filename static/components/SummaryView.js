@@ -1,7 +1,6 @@
 import { html } from '/static/lib/html.js';
 import { BalanceCard } from '/static/components/summary/BalanceCard.js';
 import { BalanceTrend } from '/static/components/summary/BalanceTrend.js';
-import { Cashflow } from '/static/components/summary/Cashflow.js';
 import { StatsRow } from '/static/components/summary/StatsRow.js';
 import { WeeklySpending } from '/static/components/summary/WeeklySpending.js';
 import { TopCategories } from '/static/components/summary/TopCategories.js';

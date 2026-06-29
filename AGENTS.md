@@ -184,7 +184,7 @@ ORDER BY date;
 | GET | `/api/balance` | `account` | Latest balance |
 | GET | `/api/recurring` | — | List recurring expenses |
 | POST | `/api/recurring` | `{name, amount, category, account, frequency, day_of_month?, start_date}` | Add recurring |
-| PUT | `/api/recurring/<id>` | same as POST | Update recurring |
+| PUT/PATCH | `/api/recurring/<id>` | same as POST | Update recurring (PUT = full, PATCH = partial) |
 | DELETE | `/api/recurring/<id>` | — | Delete recurring |
 
 ## Accounts

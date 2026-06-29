@@ -368,6 +368,21 @@ def add_recurring_expense(data: dict) -> int:
     return item_id
 
 
+def get_recurring_expense(item_id: int) -> dict | None:
+    conn = get_conn()
+    row = conn.execute(
+        """SELECT r.id, r.name, r.amount, r.account, r.frequency,
+                  r.day_of_month, r.start_date, r.end_date,
+                  c.name as category, c.color
+           FROM recurring_expenses r
+           LEFT JOIN categories c ON r.category_id = c.id
+           WHERE r.id=?""",
+        (item_id,),
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def update_recurring_expense(item_id: int, data: dict) -> bool:
     conn = get_conn()
     seed_categories(conn)

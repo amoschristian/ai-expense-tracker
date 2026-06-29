@@ -7,6 +7,8 @@ import { CategoryIcon } from '/static/components/CategoryIcon.js';
 export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
     const [catFilter, setCatFilter] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ category: '', amount: '', description: '', date: '' });
     const [errors, setErrors] = useState({});
@@ -25,6 +27,8 @@ export function TransactionView({ data, categories, onUpdated }) {
                 if (t.category !== catFilter && !t.category.startsWith(catFilter + ':')) return false;
             }
         }
+        if (dateFrom && t.date < dateFrom) return false;
+        if (dateTo && t.date > dateTo) return false;
         if (!q) return true;
         return t.date.includes(q) ||
             t.category.toLowerCase().includes(q) ||
@@ -117,6 +121,24 @@ export function TransactionView({ data, categories, onUpdated }) {
                         return html`<option key=${c} value=${c}>${label}</option>`;
                     })}
                 </select>
+            </div>
+            <div class="tx-date-filters">
+                <input
+                    type="date"
+                    placeholder="From"
+                    value=${dateFrom}
+                    onInput=${e => setDateFrom(e.target.value)}
+                />
+                <span class="tx-date-sep">–</span>
+                <input
+                    type="date"
+                    placeholder="To"
+                    value=${dateTo}
+                    onInput=${e => setDateTo(e.target.value)}
+                />
+                ${(dateFrom || dateTo) && html`
+                    <button class="btn-icon tx-date-clear" onClick=${() => { setDateFrom(''); setDateTo(''); }}>✕</button>
+                `}
             </div>
             <div class="tx-summary">
                 <span class="tx-summary-count">${filtered.length} item${filtered.length !== 1 ? 's' : ''}</span>
