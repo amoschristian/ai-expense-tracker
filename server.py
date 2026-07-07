@@ -8,7 +8,6 @@ from config import MONTHS
 from db import (
     add_recurring_expense,
     delete_recurring_expense,
-    ensure_month,
     get_accounts,
     get_balance,
     get_categories,
@@ -83,11 +82,11 @@ def api_balance():
 @app.route("/api/balance", methods=["POST"])
 def api_set_balance():
     data = request.get_json()
-    required = ["account", "year", "month", "balance"]
+    required = ["account", "balance"]
     missing = [f for f in required if f not in data]
     if missing:
         return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
-    set_balance(data["account"], int(data["year"]), int(data["month"]), int(data["balance"]))
+    set_balance(data["account"], int(data["balance"]))
     return jsonify({"ok": True})
 
 
@@ -102,14 +101,14 @@ def api_add_transaction():
     date_str = data["date"]
     category = data["category"]
     amount = int(data["amount"])
-    account = data["account"]
+    account = data["account"].lower()
     description = data.get("description", "")
 
     try:
         y, m = int(date_str[:4]), int(date_str[5:7])
     except (ValueError, IndexError):
         return jsonify({"error": "date must be YYYY-MM-DD"}), 400
-    ensure_month(account, y, m)
+
     conn = get_conn()
     seed_categories(conn)
     row = conn.execute("SELECT id FROM categories WHERE name=?", (category,)).fetchone()
@@ -173,7 +172,6 @@ def api_update_transaction(tx_id):
 
     conn = get_conn()
     seed_categories(conn)
-
     existing = conn.execute("SELECT id FROM transactions WHERE id=?", (tx_id,)).fetchone()
     if not existing:
         conn.close()

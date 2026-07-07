@@ -5,7 +5,7 @@ Mobile-friendly web dashboard — Flask API + Preact frontend + SQLite database.
 ## Quick start
 
 ```bash
-cd ~/dev/expenses-web
+cd ~/expenses-web
 source venv/bin/activate
 python3 server.py       # http://localhost:5000
 ```
@@ -28,8 +28,16 @@ python3 server.py       # http://localhost:5000
 |---|---|
 | `categories` | Expense/income/transfer category definitions with colors |
 | `transactions` | Individual transactions (amount, date, account, category) |
-| `accounts` | Monthly start/end balances per account |
+| `accounts` | One row per account — anchor balance |
 | `recurring_expenses` | Scheduled recurring transactions |
+
+### Balance Formula
+
+```
+balance = accounts.balance + SUM(income from first txn → date) - SUM(expenses from first txn → date)
+```
+
+Single anchor per account. No monthly chaining. No cascading errors.
 
 ## API endpoints
 
@@ -40,8 +48,12 @@ python3 server.py       # http://localhost:5000
 | GET | `/api/month` | Month summary + transactions |
 | GET | `/api/trend` | 6-month net cash flow |
 | GET | `/api/balance` | Latest account balance |
+| POST | `/api/balance` | Set anchor balance |
 | POST | `/api/transaction` | Add transaction |
 | PUT | `/api/transaction/<id>` | Update transaction |
+| DELETE | `/api/transaction/<id>` | Delete transaction |
+| GET | `/api/transactions/search` | Search transactions |
+| GET | `/api/mortgage` | Mortgage overview |
 | GET | `/api/recurring` | List recurring expenses |
 | POST | `/api/recurring` | Add recurring expense |
 | PUT | `/api/recurring/<id>` | Update recurring expense |
@@ -50,7 +62,7 @@ python3 server.py       # http://localhost:5000
 ## Systemd deployment
 
 ```bash
-sudo cp ~/dev/expenses-web/expenses-web.service /etc/systemd/system/
+sudo cp ~/expenses-web/expenses-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now expenses-web
 ```

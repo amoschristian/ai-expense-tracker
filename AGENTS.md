@@ -57,11 +57,8 @@ CREATE TABLE transactions (
 );
 
 CREATE TABLE accounts (
-    account TEXT NOT NULL,       -- "bca" or "house"
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    start_balance INTEGER,       -- can be NULL (first month is user-provided anchor)
-    PRIMARY KEY (account, year, month)
+    account TEXT PRIMARY KEY,    -- "bca", "amos", or "house"
+    balance INTEGER NOT NULL DEFAULT 0  -- anchor balance (opening balance)
 );
 
 CREATE TABLE recurring_expenses (
@@ -83,36 +80,39 @@ CREATE TABLE recurring_expenses (
 CREATE INDEX idx_tx_ym ON transactions(year, month);
 CREATE INDEX idx_tx_account ON transactions(account);
 CREATE INDEX idx_tx_category ON transactions(category_id);
+CREATE INDEX idx_tx_balance ON transactions(account, date, category_id, amount);
 ```
 
 ### Current data
 
-- **BCA:** 321 transactions, Jan–Jun 2026
-- **House:** 8 transactions, Jan–Jun 2026
-- **Accounts:** 12 rows (6 months × 2 accounts)
+- **BCA:** ~320 transactions, Jan–Jul 2026
+- **Amos:** ~20 transactions, Jan–Jul 2026
+- **House:** ~40 transactions, Jan 2024–Jul 2026
+- **Accounts:** 3 rows (one per account)
+
+### Balance formula
+
+```
+balance = accounts.balance + SUM(income from first txn → date) - SUM(expenses from first txn → date)
+```
+
+Single anchor per account. No monthly start/end balance maintenance.
 
 ## Query recipes
 
 ### Month summary
 
 ```sql
--- Total income/expense for a month
-SELECT
-    SUM(CASE WHEN is_income THEN amount ELSE 0 END) as income,
-    SUM(CASE WHEN NOT is_income THEN amount ELSE 0 END) as expense
-FROM transactions
-WHERE account = 'bca' AND year = 2026 AND month = 6;
-
--- Balance for a month (computed on-the-fly)
-SELECT start_balance,
-       start_balance + (
+-- Balance for a month (computed on-the-fly from anchor)
+SELECT a.balance as anchor,
+       a.balance + (
          SELECT SUM(CASE WHEN c.is_income THEN t.amount ELSE 0 END) -
                 SUM(CASE WHEN NOT c.is_income THEN t.amount ELSE 0 END)
          FROM transactions t JOIN categories c ON t.category_id=c.id
-         WHERE t.account='bca' AND t.year=2026 AND t.month=6
-       ) as end_balance
-FROM accounts
-WHERE account = 'bca' AND year = 2026 AND month = 6;
+         WHERE t.account='bca' AND (t.year * 100 + t.month) <= 202607
+       ) as current_balance
+FROM accounts a
+WHERE a.account = 'bca';
 ```
 
 ### Top categories
@@ -182,6 +182,7 @@ ORDER BY date;
 | GET | `/api/month` | `account, year, month` | Summary + transactions |
 | GET | `/api/trend` | `account, year, month` | 6-month net cash flow |
 | GET | `/api/balance` | `account` | Latest balance |
+| POST | `/api/balance` | `{account, balance}` | Set anchor balance |
 | GET | `/api/recurring` | — | List recurring expenses |
 | POST | `/api/recurring` | `{name, amount, category, account, frequency, day_of_month?, start_date}` | Add recurring |
 | PUT/PATCH | `/api/recurring/<id>` | same as POST | Update recurring (PUT = full, PATCH = partial) |
@@ -189,10 +190,11 @@ ORDER BY date;
 
 ## Accounts
 
-| Account ID | Display Name |
-|---|---|
-| `bca` | BCA |
-| `house` | CIMB Niaga |
+| Account ID | Display Name | Type |
+|---|---|---|
+| `bca` | BCA | Main |
+| `amos` | Amos | Personal/Savings |
+| `house` | CIMB Niaga | Mortgage |
 
 ## Category colors (Tokyo Night)
 

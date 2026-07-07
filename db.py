@@ -38,16 +38,14 @@ def init_db() -> None:
         );
 
         CREATE TABLE IF NOT EXISTS accounts (
-            account TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            month INTEGER NOT NULL,
-            start_balance INTEGER,
-            PRIMARY KEY (account, year, month)
+            account TEXT PRIMARY KEY,
+            balance INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE INDEX IF NOT EXISTS idx_tx_ym ON transactions(year, month);
         CREATE INDEX IF NOT EXISTS idx_tx_account ON transactions(account);
         CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id);
+        CREATE INDEX IF NOT EXISTS idx_tx_balance ON transactions(account, date, category_id, amount);
 
         CREATE TABLE IF NOT EXISTS recurring_expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,84 +78,46 @@ def seed_categories(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def get_month_end_balance(account: str, year: int, month: int) -> int:
-    """Single source of truth: end balance = start_balance + net transactions for a month."""
-    conn = get_conn()
+def _compute_balance(conn: sqlite3.Connection, account: str, year: int, month: int) -> int:
+    """Compute balance = anchor + SUM(all income from first txn to date) - SUM(all expenses)."""
     row = conn.execute(
-        "SELECT start_balance FROM accounts WHERE account=? AND year=? AND month=?",
-        (account, year, month),
+        "SELECT balance FROM accounts WHERE account=?", (account,)
     ).fetchone()
     if not row:
-        conn.close()
         return 0
-    start_b = row["start_balance"] or 0
-    net = conn.execute(
+    anchor = row["balance"]
+
+    result = conn.execute(
         """SELECT
              SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
              SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
            FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account=? AND t.year=? AND t.month=?""",
-        (account, year, month),
-    ).fetchone()
-    conn.close()
-    return start_b + (net["net"] or 0)
-
-
-def ensure_month(account: str, year: int, month: int) -> None:
-    """Auto-create an accounts row for (account, year, month) if missing.
-
-    Computes start_balance from the previous month's end balance
-    (start_balance + net transactions). Falls back to 0 if no prior month exists.
-    """
-    conn = get_conn()
-    seed_categories(conn)
-    row = conn.execute(
-        "SELECT 1 FROM accounts WHERE account=? AND year=? AND month=?",
-        (account, year, month),
-    ).fetchone()
-    if row:
-        conn.close()
-        return
-
-    # Find the most recent prior month
-    prev = conn.execute(
-        """SELECT year, month, start_balance
-           FROM accounts
-           WHERE account=? AND (year*100+month) < ?
-           ORDER BY year DESC, month DESC LIMIT 1""",
+           WHERE t.account=? AND (t.year * 100 + t.month) <= ?""",
         (account, year * 100 + month),
     ).fetchone()
+    return anchor + (result["net"] or 0)
 
-    if prev:
-        conn.close()
-        prev_end = get_month_end_balance(account, prev["year"], prev["month"])
-    else:
-        conn.close()
-        prev_end = 0
 
+def get_month_end_balance(account: str, year: int, month: int) -> int:
+    """End balance for a specific month."""
     conn = get_conn()
-    conn.execute(
-        "INSERT INTO accounts (account, year, month, start_balance) VALUES (?, ?, ?, ?)",
-        (account, year, month, prev_end),
-    )
-    conn.commit()
+    bal = _compute_balance(conn, account, year, month)
     conn.close()
+    return bal
 
 
 def get_month_summary(account: str, year: int, month: int) -> dict | None:
-    ensure_month(account, year, month)
     conn = get_conn()
     seed_categories(conn)
 
-    row = conn.execute(
-        "SELECT start_balance FROM accounts WHERE account=? AND year=? AND month=?",
-        (account, year, month),
-    ).fetchone()
-    if not row:
+    # Check if account exists
+    acc = conn.execute("SELECT 1 FROM accounts WHERE account=?", (account,)).fetchone()
+    if not acc:
         conn.close()
         return None
 
-    start_b = row["start_balance"] or 0
+    start_b = _compute_balance(conn, account, year, month - 1) if month > 1 else _compute_balance(conn, account, year - 1, 12)
+    end_b = _compute_balance(conn, account, year, month)
 
     incomes = conn.execute(
         "SELECT SUM(amount) as total FROM transactions t JOIN categories c ON t.category_id=c.id WHERE account=? AND year=? AND month=? AND c.is_income=1 AND c.is_exclude=0",
@@ -190,7 +150,7 @@ def get_month_summary(account: str, year: int, month: int) -> dict | None:
     return {
         "name": f"{MONTHS[month - 1]} {year}",
         "start": start_b,
-        "end": start_b + total_in - total_out,
+        "end": end_b,
         "income": total_in,
         "expense": total_out,
         "net": total_in - total_out,
@@ -204,7 +164,7 @@ def get_transactions(account: str, year: int, month: int) -> list[dict]:
         """SELECT t.id, t.date, t.account, c.name as category, c.color, c.is_income, c.is_exclude, t.amount, t.description
           FROM transactions t JOIN categories c ON t.category_id=c.id
           WHERE t.account=? AND t.year=? AND t.month=?
-          ORDER BY t.date DESC, t.id""",
+          ORDER BY t.date DESC, t.id DESC""",
         (account, year, month),
     ).fetchall()
     conn.close()
@@ -230,95 +190,44 @@ def get_trend(account: str, year: int, month: int) -> list[dict]:
 
 
 def get_balance(account: str) -> dict | None:
-    """Get current balance by computing from first month's start_balance + all transactions."""
+    """Get current balance from anchor + all transactions."""
     conn = get_conn()
-    
-    # Find the earliest month
-    anchor = conn.execute(
-        """SELECT year, month, start_balance
-           FROM accounts
-           WHERE account=?
-           ORDER BY year, month
-           LIMIT 1""",
-        (account,),
-    ).fetchone()
-    if not anchor:
+    acc = conn.execute("SELECT balance FROM accounts WHERE account=?", (account,)).fetchone()
+    if not acc:
         conn.close()
         return None
-    
-    anchor_y, anchor_m = anchor["year"], anchor["month"]
-    start_b = anchor["start_balance"] or 0
-    
-    # Sum ALL transactions from that month onward
-    result = conn.execute(
-        """SELECT
-             SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
-             SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
-           FROM transactions t JOIN categories c ON t.category_id=c.id
-           WHERE t.account=?
-             AND (t.year * 100 + t.month) >= ?""",
-        (account, anchor_y * 100 + anchor_m),
-    ).fetchone()
-    net = result["net"] or 0
-    
-    # Latest month for display
+
+    # Find latest transaction date
     latest = conn.execute(
-        """SELECT year, month FROM accounts
-           WHERE account=? ORDER BY year DESC, month DESC LIMIT 1""",
+        "SELECT year, month FROM transactions WHERE account=? ORDER BY year DESC, month DESC LIMIT 1",
         (account,),
     ).fetchone()
-    
+
+    if latest:
+        bal = _compute_balance(conn, account, latest["year"], latest["month"])
+        y, m = latest["year"], latest["month"]
+    else:
+        bal = acc["balance"]
+        y, m = 2026, 1
+
     conn.close()
-    return {
-        "account": account,
-        "balance": start_b + net,
-        "year": latest["year"],
-        "month": latest["month"],
-    }
+    return {"account": account, "balance": bal, "year": y, "month": m}
 
 
-def set_balance(account: str, year: int, month: int, balance: int) -> None:
-    """Set the bank-confirmed current balance. Computes the correct start_balance for the first month."""
+def set_balance(account: str, balance: int) -> None:
+    """Set the anchor balance for an account."""
     conn = get_conn()
-    
-    # Find the earliest month
-    first = conn.execute(
-        "SELECT year, month FROM accounts WHERE account=? ORDER BY year, month LIMIT 1",
-        (account,),
-    ).fetchone()
-    
-    if first:
-        # Sum all transactions from first month to the confirmed month
-        result = conn.execute(
-            """SELECT
-                 SUM(CASE WHEN c.is_income=1 THEN t.amount ELSE 0 END) -
-                 SUM(CASE WHEN c.is_income=0 THEN t.amount ELSE 0 END) as net
-               FROM transactions t JOIN categories c ON t.category_id=c.id
-               WHERE t.account=?
-                 AND (t.year * 100 + t.month) >= ?
-                 AND (t.year * 100 + t.month) <= ?""",
-            (account, first["year"] * 100 + first["month"], year * 100 + month),
-        ).fetchone()
-        net = result["net"] or 0
-        
-        # start_balance = current_balance - net_transactions
-        correct_start = balance - net
-        
-        # Update the first month's start_balance
-        conn.execute(
-            "UPDATE accounts SET start_balance=? WHERE account=? AND year=? AND month=?",
-            (correct_start, account, first["year"], first["month"]),
-        )
-    
+    conn.execute(
+        "INSERT INTO accounts (account, balance) VALUES (?, ?) ON CONFLICT(account) DO UPDATE SET balance=?",
+        (account, balance, balance),
+    )
     conn.commit()
     conn.close()
 
 
 def get_accounts() -> list[dict]:
     conn = get_conn()
-    rows = conn.execute(
-        """SELECT DISTINCT account FROM accounts ORDER BY account"""
-    ).fetchall()
+    rows = conn.execute("SELECT account FROM accounts ORDER BY account").fetchall()
     conn.close()
     return [{"id": r["account"]} for r in rows]
 

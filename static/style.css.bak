@@ -267,9 +267,9 @@ main {
 /* Category bars */
 .cat-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1.5fr auto;
+    grid-template-columns: 120px 120px 200px auto;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 7px 0;
 }
 .cat-row + .cat-row {
@@ -296,7 +296,7 @@ main {
     background: rgba(59, 66, 97, 0.4);
     border-radius: 3px;
     overflow: hidden;
-    width: 100%;
+    width: 200px;
 }
 .cat-bar {
     height: 100%;
