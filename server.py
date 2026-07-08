@@ -32,6 +32,10 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/sw.js")
+def service_worker():
+    return send_from_directory("static", "sw.js")
+
 @app.route("/static/<path:path>")
 def static_files(path):
     return send_from_directory("static", path)

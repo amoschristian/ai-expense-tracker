@@ -28,12 +28,13 @@ body {
     flex-direction: column;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior: contain;
 }
 
 /* Header */
 header {
     background: var(--bg);
-    padding: 16px 16px 12px;
+    padding: max(16px, env(safe-area-inset-top, 16px)) 16px 12px;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -97,7 +98,17 @@ main {
     flex: 1;
     overflow-y: auto;
     padding: 0 16px 88px;
+    -webkit-overflow-scrolling: touch;
 }
+
+.ptr--text,
+.ptr--icon {
+    color: var(--text) !important;
+}
+.ptr--icon {
+    color: var(--blue) !important;
+}
+
 
 /* Cards */
 .card {
