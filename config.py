@@ -42,5 +42,18 @@ TRANSFER_PARENTS = {"Transfer"}
 
 ACCOUNTS = {
     "bca": {"name": "BCA", "dir": "bca"},
+    "amos": {"name": "Amos", "dir": "amos"},
     "house": {"name": "CIMB Niaga", "dir": "house"},
+}
+
+MORTGAGE = {
+    "original_loan": 915959000,
+    "start_date": "Dec 2023",
+    "tenor": 240,
+    "rate_schedule": [
+        {"from": "2024-01", "to": "2026-12", "months": "1–36", "rate": 4.30},
+        {"from": "2027-01", "to": "2029-12", "months": "37–72", "rate": 7.60},
+        {"from": "2030-01", "to": "2032-12", "months": "73–108", "rate": 9.60},
+        {"from": "2033-01", "to": "2043-12", "months": "109–240", "rate": 10.60},
+    ],
 }

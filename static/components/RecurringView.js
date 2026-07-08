@@ -1,25 +1,29 @@
 import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
-import { DEFAULT_COLOR, fmtRp, fetchJSON } from '/static/lib/utils.js';
+import { DEFAULT_COLOR, fmtRp, fetchJSON, apiPost, apiPut, apiDelete } from '/static/lib/utils.js';
+import { showToast } from '/static/lib/toast.js';
 import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
+import { Spinner } from '/static/components/Spinner.js';
 
-export function RecurringView({ categories }) {
-    const [items, setItems] = useState([]);
+export function RecurringView({ categories, accounts }) {
+    const [items, setItems] = useState(null);
     const [editing, setEditing] = useState(null);
     const today = new Date().toISOString().slice(0, 10);
     const [form, setForm] = useState({ name: '', amount: '', category: '', account: 'bca', frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
 
     const load = useCallback(() => {
-        fetchJSON('/api/recurring').then(d => { if (d) setItems(d); });
+        fetchJSON('/api/recurring').then(d => { if (d && !d.error) setItems(d); });
     }, []);
 
     useEffect(() => { load(); }, [load]);
 
     const freqLabels = { monthly: 'Monthly', yearly: 'Yearly', weekly: 'Weekly' };
     const expenseCategories = categories.filter(c => !c.is_income && !c.is_exclude);
+    const accountOpts = accounts.length ? accounts : [{ id: 'bca' }, { id: 'house' }];
 
     function resetForm() {
         const t = new Date().toISOString().slice(0, 10);
@@ -58,26 +62,37 @@ export function RecurringView({ categories }) {
             return;
         }
 
+        setSaving(true);
         const payload = { ...form, amount: parseInt(form.amount) };
         const url = editing ? `/api/recurring/${editing}` : '/api/recurring';
-        const method = editing ? 'PUT' : 'POST';
-        const res = await fetch(url, {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        if (res.ok) {
+        const method = editing ? apiPut : apiPost;
+        const result = await method(url, payload);
+        setSaving(false);
+
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast(editing ? 'Recurring expense updated' : 'Recurring expense added');
             resetForm();
             load();
         }
     }
 
     async function handleDelete(id) {
-        const res = await fetch(`/api/recurring/${id}`, { method: 'DELETE' });
-        if (res.ok) {
+        setSaving(true);
+        const result = await apiDelete(`/api/recurring/${id}`);
+        setSaving(false);
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Recurring expense deleted');
             setConfirmDelete(null);
             load();
         }
+    }
+
+    if (items === null) {
+        return html`<${Spinner} text="Loading recurring expenses..." />`;
     }
 
     const totalMonthly = items.reduce((sum, item) => {
@@ -119,8 +134,7 @@ export function RecurringView({ categories }) {
                         ${errors.category && html`<span class="field-error">Required</span>`}
                     </div>
                     <select value=${form.account} onChange=${e => setForm({ ...form, account: e.target.value })}>
-                        <option value="bca">BCA</option>
-                        <option value="house">House</option>
+                        ${accountOpts.map(a => html`<option key=${a.id} value=${a.id}>${a.id.toUpperCase()}</option>`)}
                     </select>
                     <div class="form-row">
                         <select value=${form.frequency} onChange=${e => setForm({ ...form, frequency: e.target.value })}>
@@ -134,7 +148,7 @@ export function RecurringView({ categories }) {
                         `}
                     </div>
                     <div class="form-actions">
-                        <button type="submit" class="btn-primary">${editing ? 'Update' : 'Add'}</button>
+                        <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : (editing ? 'Update' : 'Add')}</button>
                         ${editing && html`<button type="button" class="btn-secondary" onClick=${resetForm}>Cancel</button>`}
                     </div>
                 </form>

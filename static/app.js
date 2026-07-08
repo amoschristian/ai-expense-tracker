@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'https://esm.sh/preact@10.25.4/hooks';
+import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/hooks';
 import { render } from 'https://esm.sh/preact@10.25.4';
 import { html } from '/static/lib/html.js';
 import PullToRefresh from 'https://esm.sh/pulltorefreshjs@0.1.22';
-import { fetchJSON } from '/static/lib/utils.js';
+import { fetchJSON, fetchCSRF } from '/static/lib/utils.js';
 import { Header } from '/static/components/Header.js';
 import { SummaryView } from '/static/components/SummaryView.js';
 import { TransactionView } from '/static/components/TransactionView.js';
 import { MortgageView } from '/static/components/MortgageView.js';
 import { RecurringView } from '/static/components/RecurringView.js';
 import { TabBar } from '/static/components/TabBar.js';
+import { ToastBar } from '/static/components/ToastBar.js';
 
 function App() {
     const now = new Date();
@@ -22,31 +23,35 @@ function App() {
     const [balance, setBalance] = useState(null);
     const [categories, setCategories] = useState([]);
     const [mortgageData, setMortgageData] = useState(null);
+    const [ready, setReady] = useState(false);
 
     useEffect(() => {
-        fetchJSON('/api/accounts').then(d => { if (d) setAccounts(d); });
-        fetchJSON('/api/categories').then(d => { if (d) setCategories(d); });
+        fetchCSRF().then(() => setReady(true));
+        fetchJSON('/api/accounts').then(d => { if (d && !d.error) setAccounts(d); });
+        fetchJSON('/api/categories').then(d => { if (d && !d.error) setCategories(d); });
     }, []);
 
     useEffect(() => {
-        fetchJSON(`/api/balance?account=${account}`).then(d => { if (d) setBalance(d); });
-    }, [account]);
+        if (!ready) return;
+        fetchJSON(`/api/balance?account=${account}`).then(d => { if (d && !d.error) setBalance(d); });
+    }, [account, ready]);
 
     useEffect(() => {
+        if (!ready) return;
         Promise.all([
             fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`),
             fetchJSON(`/api/trend?account=${account}&year=${year}&month=${month}`)
         ]).then(([m, t]) => {
-            setMonthData(m);
-            setTrendData(t);
+            if (m && !m.error) setMonthData(m);
+            if (t && !t.error) setTrendData(t);
         });
-    }, [year, month, account]);
+    }, [year, month, account, ready]);
 
     useEffect(() => {
-        if (view === 'mortgage' && !mortgageData) {
-            fetchJSON('/api/mortgage').then(d => { if (d) setMortgageData(d); });
+        if (view === 'mortgage' && !mortgageData && ready) {
+            fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); });
         }
-    }, [view, mortgageData]);
+    }, [view, mortgageData, ready]);
 
     const prevMonth = useCallback(() => {
         setMonth(m => {
@@ -63,19 +68,19 @@ function App() {
     }, []);
 
     const reloadMonth = useCallback(() => {
-        fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d) setMonthData(d); });
+        fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d && !d.error) setMonthData(d); });
     }, [account, year, month]);
 
-    // --- Pull-to-refresh ---
-    const refreshAll = useRef();
-    refreshAll.current = () => Promise.all([
-        fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d) setMonthData(d); }),
-        fetchJSON(`/api/trend?account=${account}&year=${year}&month=${month}`).then(d => { if (d) setTrendData(d); }),
-        fetchJSON(`/api/balance?account=${account}`).then(d => { if (d) setBalance(d); }),
-        view === 'mortgage' && mortgageData
-            ? fetchJSON('/api/mortgage').then(d => { if (d) setMortgageData(d); })
-            : Promise.resolve(),
-    ]);
+    function refreshAll() {
+        return Promise.all([
+            fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d && !d.error) setMonthData(d); }),
+            fetchJSON(`/api/trend?account=${account}&year=${year}&month=${month}`).then(d => { if (d && !d.error) setTrendData(d); }),
+            fetchJSON(`/api/balance?account=${account}`).then(d => { if (d && !d.error) setBalance(d); }),
+            view === 'mortgage' && mortgageData
+                ? fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); })
+                : Promise.resolve(),
+        ]);
+    }
 
     useEffect(() => {
         const ptr = PullToRefresh.init({
@@ -83,7 +88,7 @@ function App() {
             triggerElement: '#content',
             distThreshold: 60,
             onRefresh() {
-                return refreshAll.current();
+                return refreshAll();
             },
             shouldPullToRefresh() {
                 return this.mainElement.scrollTop <= 0;
@@ -107,15 +112,15 @@ function App() {
             ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
-            ${view === 'recurring' && html`<${RecurringView} categories=${categories} account=${account} />`}
+            ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} />`}
         </main>
         <${TabBar} active=${view} onChange=${setView} />
+        <${ToastBar} />
     `;
 }
 
 render(html`<${App} />`, document.getElementById('app'));
 
-// --- PWA Service Worker ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js');
 }

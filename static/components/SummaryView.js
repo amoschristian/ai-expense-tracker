@@ -5,10 +5,14 @@ import { StatsRow } from '/static/components/summary/StatsRow.js';
 import { WeeklySpending } from '/static/components/summary/WeeklySpending.js';
 import { TopCategories } from '/static/components/summary/TopCategories.js';
 import { CashFlowTrend } from '/static/components/summary/CashFlowTrend.js';
+import { Spinner } from '/static/components/Spinner.js';
 
 export function SummaryView({ data, trend, balance, categories, account }) {
-    if (!data || data.error) {
-        return html`<section class="view"><div class="card empty">No data for this month</div></section>`;
+    if (!data) {
+        return html`<${Spinner} text="Loading summary..." />`;
+    }
+    if (data.error) {
+        return html`<section class="view"><div class="card empty">${data.error}</div></section>`;
     }
 
     return html`

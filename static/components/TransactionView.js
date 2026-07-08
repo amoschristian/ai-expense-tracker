@@ -1,8 +1,10 @@
 import { useState } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
-import { DEFAULT_COLOR, fmtRp, getCatColor, shortDate } from '/static/lib/utils.js';
+import { DEFAULT_COLOR, fmtRp, getCatColor, shortDate, apiPut } from '/static/lib/utils.js';
+import { showToast } from '/static/lib/toast.js';
 import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
+import { Spinner } from '/static/components/Spinner.js';
 
 export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
@@ -12,8 +14,12 @@ export function TransactionView({ data, categories, onUpdated }) {
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ category: '', amount: '', description: '', date: '' });
     const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
 
-    if (!data || !data.transactions || !data.transactions.length) {
+    if (!data) {
+        return html`<${Spinner} text="Loading transactions..." />`;
+    }
+    if (!data.transactions || !data.transactions.length) {
         return html`<section class="view"><div class="card empty">No transactions</div></section>`;
     }
 
@@ -85,18 +91,19 @@ export function TransactionView({ data, categories, onUpdated }) {
             return;
         }
 
-        const res = await fetch(`/api/transaction/${editing.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                category: form.category,
-                amount: parseInt(form.amount),
-                description: form.description,
-                date: form.date,
-            }),
+        setSaving(true);
+        const result = await apiPut(`/api/transaction/${editing.id}`, {
+            category: form.category,
+            amount: parseInt(form.amount),
+            description: form.description,
+            date: form.date,
         });
+        setSaving(false);
 
-        if (res.ok) {
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Transaction updated');
             closeModal();
             if (onUpdated) onUpdated();
         }
@@ -205,11 +212,11 @@ export function TransactionView({ data, categories, onUpdated }) {
                             </div>
                             <div class="form-field">
                                 <label>Description (Optional)</label>
-                                <input type="textare" placeholder="Description (optional)" value=${form.description}
+                                <input type="text" placeholder="Description (optional)" value=${form.description}
                                     onInput=${e => setForm({ ...form, description: e.target.value })} />
                             </div>
                             <div class="form-actions">
-                                <button type="submit" class="btn-primary">Save</button>
+                                <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : 'Save'}</button>
                                 <button type="button" class="btn-secondary" onClick=${closeModal}>Cancel</button>
                             </div>
                         </form>

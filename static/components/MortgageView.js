@@ -1,12 +1,76 @@
 import { useState } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
 import { MONTHS, fmtRp } from '/static/lib/utils.js';
+import { Spinner } from '/static/components/Spinner.js';
+
+function pmt(balance, annualRate, remainingMonths) {
+    const r = annualRate / 100 / 12;
+    if (r === 0) return balance / remainingMonths;
+    return balance * r / (1 - Math.pow(1 + r, -remainingMonths));
+}
+
+function getRateForMonth(elapsedMonths, rates, startYear, startMonth) {
+    let lastRate = rates[0].rate;
+    for (const r of rates) {
+        const fromParts = r.from.split('-');
+        const toParts = r.to.split('-');
+        const fromMonths = (parseInt(fromParts[0]) - startYear) * 12 + (parseInt(fromParts[1]) - startMonth);
+        const toMonths = (parseInt(toParts[0]) - startYear) * 12 + (parseInt(toParts[1]) - startMonth);
+        if (elapsedMonths < fromMonths) return lastRate;
+        if (elapsedMonths >= fromMonths && elapsedMonths <= toMonths) {
+            return r.rate;
+        }
+        lastRate = r.rate;
+    }
+    return lastRate;
+}
+
+function simulateLoan(principal, rates, tenor, startYear, startMonth, savingsBalance, monthlySavings, monthsElapsed) {
+    let balance = principal;
+    let savings = savingsBalance;
+    const results = [];
+    let totalInterest = 0;
+    let totalPaid = 0;
+    let payment = pmt(principal, rates[0].rate, tenor);
+    let payoffMonth = -1;
+
+    for (let m = 0; m < tenor; m++) {
+        const rate = getRateForMonth(m, rates, startYear, startMonth);
+        const prevRate = m > 0 ? getRateForMonth(m - 1, rates, startYear, startMonth) : null;
+        if (prevRate !== null && rate !== prevRate) {
+            payment = pmt(balance, rate, tenor - m);
+        }
+        const effectivePrincipal = Math.max(0, balance - savings * 0.8);
+        const interest = effectivePrincipal * rate / 100 / 12;
+        balance = balance + interest - payment;
+        if (balance < 1) balance = 0;
+        totalInterest += interest;
+        totalPaid += payment;
+
+        if (monthlySavings > 0 && m >= monthsElapsed) {
+            savings += monthlySavings;
+        }
+
+        const year = startYear + Math.floor((startMonth + m) / 12);
+        const month = ((startMonth + m - 1) % 12) + 1;
+        results.push({ year, month, rate, payment, interest, principalPart: payment - interest, balance });
+
+        if (balance === 0 && payoffMonth < 0) {
+            payoffMonth = m;
+            break;
+        }
+    }
+    return { results, totalInterest, totalPaid, payoffMonth };
+}
 
 export function MortgageView({ data }) {
     const [savings, setSavings] = useState(252000000);
 
-    if (!data || !data.payments) {
-        return html`<section class="view"><div class="card empty">Loading mortgage data...</div></section>`;
+    if (!data) {
+        return html`<${Spinner} text="Loading mortgage data..." />`;
+    }
+    if (!data.payments) {
+        return html`<section class="view"><div class="card empty">No mortgage data</div></section>`;
     }
 
     const months_elapsed = (() => {
@@ -25,144 +89,41 @@ export function MortgageView({ data }) {
     const startMonth = 12;
     const startYear = 2023;
 
-    function pmt(balance, annualRate, remainingMonths) {
-        const r = annualRate / 100 / 12;
-        if (r === 0) return balance / remainingMonths;
-        return balance * r / (1 - Math.pow(1 + r, -remainingMonths));
-    }
+    const current = simulateLoan(principal, rates, data.tenor, startYear, startMonth, savings, 0, 0);
+    const noSavings = simulateLoan(principal, rates, data.tenor, startYear, startMonth, 0, 0, 0);
+    const interestSaved = noSavings.totalInterest - current.totalInterest;
 
-    function getRateForMonth(elapsedMonths) {
-        let lastRate = rates[0].rate;
-        for (const r of rates) {
+    const actualSim = simulateLoan(principal, rates, data.tenor, startYear, startMonth, data.house_balance, 2000000, months_elapsed);
+    const actualNoGrowth = simulateLoan(principal, rates, data.tenor, startYear, startMonth, 0, 0, 0);
+    const actualInterestSaved = actualNoGrowth.totalInterest - actualSim.totalInterest;
+    const actualPayoffYear = actualSim.payoffMonth >= 0
+        ? startYear + Math.floor((startMonth + actualSim.payoffMonth) / 12)
+        : '\u2014';
+
+    function buildTrajectory(results) {
+        return rates.map(r => {
             const fromParts = r.from.split('-');
             const toParts = r.to.split('-');
             const fromMonths = (parseInt(fromParts[0]) - startYear) * 12 + (parseInt(fromParts[1]) - startMonth);
             const toMonths = (parseInt(toParts[0]) - startYear) * 12 + (parseInt(toParts[1]) - startMonth);
-            if (elapsedMonths < fromMonths) return lastRate;
-            if (elapsedMonths >= fromMonths && elapsedMonths <= toMonths) {
-                return r.rate;
-            }
-            lastRate = r.rate;
-        }
-        return lastRate;
+            const midMonth = Math.floor((fromMonths + toMonths) / 2);
+            const sample = results[midMonth] || results[results.length - 1];
+            return {
+                rate: r.rate,
+                label: `${r.from.split('-')[0]}\u2013${r.to.split('-')[0]}`,
+                payment: sample ? sample.payment : 0,
+            };
+        });
     }
 
-    function simulate(savingsBalance) {
-        let balance = principal;
-        const results = [];
-        let totalInterest = 0;
-        let totalPaid = 0;
-        let payment = pmt(principal, rates[0].rate, data.tenor);
-        let payoffMonth = -1;
-
-        for (let m = 0; m < data.tenor; m++) {
-            const rate = getRateForMonth(m);
-            const prevRate = m > 0 ? getRateForMonth(m - 1) : null;
-            if (prevRate !== null && rate !== prevRate) {
-                payment = pmt(balance, rate, data.tenor - m);
-            }
-            const effectivePrincipal = Math.max(0, balance - savingsBalance * 0.8);
-            const interest = effectivePrincipal * rate / 100 / 12;
-            balance = balance + interest - payment;
-            if (balance < 1) balance = 0;
-            totalInterest += interest;
-            totalPaid += payment;
-
-            const year = startYear + Math.floor((startMonth + m) / 12);
-            const month = ((startMonth + m - 1) % 12) + 1;
-            results.push({ year, month, rate, payment, interest, principalPart: payment - interest, balance });
-
-            if (balance === 0 && payoffMonth < 0) {
-                payoffMonth = m;
-                break;
-            }
-        }
-        return { results, totalInterest, totalPaid, payoffMonth };
-    }
-
-    const current = simulate(savings);
-    const noSavings = simulate(0);
-    const interestSaved = noSavings.totalInterest - current.totalInterest;
-
-    const monthlySavings = 2000000;
-    function simulateWithGrowth(startBalance) {
-        let balance = principal;
-        let savingsBalance = startBalance;
-        const results = [];
-        let totalInterest = 0;
-        let totalPaid = 0;
-        let payment = pmt(principal, rates[0].rate, data.tenor);
-        let payoffMonth = -1;
-
-        for (let m = 0; m < data.tenor; m++) {
-            const rate = getRateForMonth(m);
-            const prevRate = m > 0 ? getRateForMonth(m - 1) : null;
-            if (prevRate !== null && rate !== prevRate) {
-                payment = pmt(balance, rate, data.tenor - m);
-            }
-            const effectivePrincipal = Math.max(0, balance - savingsBalance * 0.8);
-            const interest = effectivePrincipal * rate / 100 / 12;
-            balance = balance + interest - payment;
-            if (balance < 1) balance = 0;
-            totalInterest += interest;
-            totalPaid += payment;
-
-            const elapsed = m;
-            if (elapsed >= months_elapsed) {
-                savingsBalance += monthlySavings;
-            }
-
-            const year = startYear + Math.floor((startMonth + m) / 12);
-            const month = ((startMonth + m - 1) % 12) + 1;
-            results.push({ year, month, rate, payment, interest, principalPart: payment - interest, balance });
-
-            if (balance === 0 && payoffMonth < 0) {
-                payoffMonth = m;
-                break;
-            }
-        }
-        return { results, totalInterest, totalPaid, payoffMonth };
-    }
-
-    const actualSim = simulateWithGrowth(data.house_balance);
-    const actualInterestSaved = simulateWithGrowth(0).totalInterest - actualSim.totalInterest;
-    const actualPayoffYear = actualSim.payoffMonth >= 0
-        ? startYear + Math.floor((startMonth + actualSim.payoffMonth) / 12)
-        : '—';
-
-    const trajectory = rates.map(r => {
-        const fromParts = r.from.split('-');
-        const toParts = r.to.split('-');
-        const fromMonths = (parseInt(fromParts[0]) - startYear) * 12 + (parseInt(fromParts[1]) - startMonth);
-        const toMonths = (parseInt(toParts[0]) - startYear) * 12 + (parseInt(toParts[1]) - startMonth);
-        const midMonth = Math.floor((fromMonths + toMonths) / 2);
-        const sample = current.results[midMonth] || current.results[current.results.length - 1];
-        return {
-            rate: r.rate,
-            label: `${r.from.split('-')[0]}–${r.to.split('-')[0]}`,
-            payment: sample ? sample.payment : 0,
-        };
-    });
-
-    const actualTrajectory = rates.map(r => {
-        const fromParts = r.from.split('-');
-        const toParts = r.to.split('-');
-        const fromMonths = (parseInt(fromParts[0]) - startYear) * 12 + (parseInt(fromParts[1]) - startMonth);
-        const toMonths = (parseInt(toParts[0]) - startYear) * 12 + (parseInt(toParts[1]) - startMonth);
-        const midMonth = Math.floor((fromMonths + toMonths) / 2);
-        const sample = actualSim.results[midMonth] || actualSim.results[actualSim.results.length - 1];
-        return {
-            rate: r.rate,
-            label: `${r.from.split('-')[0]}–${r.to.split('-')[0]}`,
-            payment: sample ? sample.payment : 0,
-        };
-    });
+    const trajectory = buildTrajectory(current.results);
+    const actualTrajectory = buildTrajectory(actualSim.results);
 
     const maxPaymentSim = Math.max(...trajectory.map(t => t.payment), 1);
     const maxPaymentActual = Math.max(...actualTrajectory.map(t => t.payment), 1);
     const payoffYear = current.payoffMonth >= 0
         ? startYear + Math.floor((startMonth + current.payoffMonth) / 12)
-        : '—';
+        : '\u2014';
 
     return html`
         <section class="view">
@@ -219,7 +180,7 @@ export function MortgageView({ data }) {
             </div>
 
             <div class="card">
-                <div class="card-title">Current Projection — ${fmtRp(data.house_balance)}</div>
+                <div class="card-title">Current Projection \u2014 ${fmtRp(data.house_balance)}</div>
                 <div class="sim-stats">
                     <div class="sim-stat">
                         <span class="sim-stat-label">Payoff Year</span>
@@ -265,7 +226,7 @@ export function MortgageView({ data }) {
             </div>
 
             <div class="card">
-                <div class="card-title">KPR Simulation — 80% Rule</div>
+                <div class="card-title">KPR Simulation \u2014 80% Rule</div>
                 <div class="sim-input">
                     <label class="sim-label">Savings Balance</label>
                     <input
