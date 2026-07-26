@@ -1,16 +1,17 @@
 import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
+import { Calendar } from 'https://esm.sh/lucide-preact@1.21.0?deps=preact@10.25.4';
 import { DEFAULT_COLOR, fmtRp, fetchJSON, apiPost, apiPut, apiDelete } from '/static/lib/utils.js';
 import { showToast } from '/static/lib/toast.js';
-import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
 import { Spinner } from '/static/components/Spinner.js';
+import { SearchableSelect } from '/static/components/SearchableSelect.js';
 
-export function RecurringView({ categories, accounts }) {
+export function RecurringView({ categories, accounts, account }) {
     const [items, setItems] = useState(null);
     const [editing, setEditing] = useState(null);
     const today = new Date().toISOString().slice(0, 10);
-    const [form, setForm] = useState({ name: '', amount: '', category: '', account: 'bca', frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
+    const [form, setForm] = useState({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
@@ -21,13 +22,28 @@ export function RecurringView({ categories, accounts }) {
 
     useEffect(() => { load(); }, [load]);
 
-    const freqLabels = { monthly: 'Monthly', yearly: 'Yearly', weekly: 'Weekly' };
     const expenseCategories = categories.filter(c => !c.is_income && !c.is_exclude);
-    const accountOpts = accounts.length ? accounts : [{ id: 'bca' }, { id: 'house' }];
+
+    function formatFrequency(item) {
+        if (item.frequency === 'monthly' && item.day_of_month) {
+            const d = item.day_of_month;
+            const suf = d === 1 || d === 21 || d === 31 ? 'st' : d === 2 || d === 22 ? 'nd' : d === 3 || d === 23 ? 'rd' : 'th';
+            return `every ${d}${suf} day of month`;
+        }
+        if (item.frequency === 'monthly') return 'monthly';
+        if (item.frequency === 'yearly') return 'yearly';
+        if (item.frequency === 'weekly') return 'weekly';
+        return item.frequency;
+    }
+
+    function formatCategory(cat) {
+        if (!cat.includes(':')) return cat;
+        return cat.replace(':', ' - ');
+    }
 
     function resetForm() {
         const t = new Date().toISOString().slice(0, 10);
-        setForm({ name: '', amount: '', category: '', account: 'bca', frequency: 'monthly', day_of_month: '', start_date: t, end_date: '' });
+        setForm({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: t, end_date: '' });
         setEditing(null);
         setErrors({});
     }
@@ -91,11 +107,38 @@ export function RecurringView({ categories, accounts }) {
         }
     }
 
+    async function handlePay(id) {
+        setSaving(true);
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const result = await apiPost(`/api/recurring/${id}/pay`, { date: todayStr });
+        setSaving(false);
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Marked as paid');
+            load();
+        }
+    }
+
+    async function handleUnpay(id) {
+        setSaving(true);
+        const result = await apiDelete(`/api/recurring/${id}/pay`);
+        setSaving(false);
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Payment undone');
+            load();
+        }
+    }
+
     if (items === null) {
         return html`<${Spinner} text="Loading recurring expenses..." />`;
     }
 
-    const totalMonthly = items.reduce((sum, item) => {
+    const filteredItems = items.filter(item => item.account === account);
+
+    const totalMonthly = filteredItems.reduce((sum, item) => {
         if (item.frequency === 'monthly') return sum + item.amount;
         if (item.frequency === 'yearly') return sum + Math.round(item.amount / 12);
         if (item.frequency === 'weekly') return sum + Math.round(item.amount * 4.33);
@@ -123,19 +166,19 @@ export function RecurringView({ categories, accounts }) {
                         ${errors.amount && html`<span class="field-error">Required</span>`}
                     </div>
                     <div class="form-field${errors.category ? ' has-error' : ''}">
-                        <select value=${form.category} onChange=${e => { setForm({ ...form, category: e.target.value }); clearError('category'); }}>
-                            <option value="">Category</option>
-                            ${expenseCategories.map(c => {
-                                const isChild = c.name.includes(':');
-                                const label = isChild ? '- ' + getChildName(c.name) : c.name;
-                                return html`<option key=${c.name} value=${c.name}>${label}</option>`;
-                            })}
-                        </select>
+                        <${SearchableSelect}
+                            options=${expenseCategories.map(c => ({
+                                value: c.name,
+                                label: c.name.includes(':') ? c.name.replace(':', ' - ') : c.name,
+                                color: c.color,
+                            }))}
+                            value=${form.category}
+                            onChange=${val => { setForm({ ...form, category: val }); clearError('category'); }}
+                            placeholder="Category"
+                            hasError=${!!errors.category}
+                        />
                         ${errors.category && html`<span class="field-error">Required</span>`}
                     </div>
-                    <select value=${form.account} onChange=${e => setForm({ ...form, account: e.target.value })}>
-                        ${accountOpts.map(a => html`<option key=${a.id} value=${a.id}>${a.id.toUpperCase()}</option>`)}
-                    </select>
                     <div class="form-row">
                         <select value=${form.frequency} onChange=${e => setForm({ ...form, frequency: e.target.value })}>
                             <option value="monthly">Monthly</option>
@@ -155,27 +198,35 @@ export function RecurringView({ categories, accounts }) {
             </div>
 
             <div class="card">
-                <div class="card-title">Recurring Expenses (${items.length})</div>
-                ${items.length ? items.map(item => {
+                <div class="card-title">Recurring Expenses (${filteredItems.length})</div>
+                ${filteredItems.length ? filteredItems.map(item => {
                     const color = item.color || DEFAULT_COLOR;
-                    const monthly = item.frequency === 'monthly' ? item.amount
-                        : item.frequency === 'yearly' ? Math.round(item.amount / 12)
-                        : Math.round(item.amount * 4.33);
                     return html`
-                        <div class="recurring-row" key=${item.id}>
+                        <div class="recurring-row${item.paid ? ' paid' : ''}" key=${item.id}>
                             <div class="recurring-left">
                                 <div class="recurring-name" style=${{ color }}>${item.name}</div>
-                                <div class="recurring-meta">
+                                <div class="recurring-cat">
                                     <${CategoryIcon} category=${item.category} size=${12} color=${color} />
-                                    <span>${getChildName(item.category)}</span>
-                                    <span> · ${freqLabels[item.frequency] || item.frequency}${item.day_of_month ? ' · day ' + item.day_of_month : ''} · ${item.account.toUpperCase()}</span>
+                                    <span>${formatCategory(item.category)}</span>
+                                </div>
+                                <div class="recurring-freq">
+                                    <${Calendar} size=${11} />
+                                    ${formatFrequency(item)}
+                                    ${item.paid && html` · <span class="paid-tag">Paid ${item.paid_date}</span>`}
                                 </div>
                             </div>
                             <div class="recurring-right">
                                 <div class="recurring-amt">${fmtRp(item.amount)}</div>
-                                <div class="recurring-monthly">~${fmtRp(monthly)}/mo</div>
                             </div>
                             <div class="recurring-actions">
+                                ${item.paid
+                                    ? html`
+                                        <button class="btn-paid" onClick=${() => handleUnpay(item.id)} title="Undo payment">Paid ✓</button>
+                                    `
+                                    : html`
+                                        <button class="btn-pay" onClick=${() => handlePay(item.id)} disabled=${saving}>Pay</button>
+                                    `
+                                }
                                 <button class="btn-icon" onClick=${() => startEdit(item)}>✎</button>
                                 ${confirmDelete === item.id
                                     ? html`

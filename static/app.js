@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/
 import { render } from 'https://esm.sh/preact@10.25.4';
 import { html } from '/static/lib/html.js';
 import PullToRefresh from 'https://esm.sh/pulltorefreshjs@0.1.22';
-import { fetchJSON, fetchCSRF } from '/static/lib/utils.js';
+import { fetchJSON, fetchCSRF, apiPost } from '/static/lib/utils.js';
 import { Header } from '/static/components/Header.js';
 import { SummaryView } from '/static/components/SummaryView.js';
 import { TransactionView } from '/static/components/TransactionView.js';
@@ -10,6 +10,8 @@ import { MortgageView } from '/static/components/MortgageView.js';
 import { RecurringView } from '/static/components/RecurringView.js';
 import { TabBar } from '/static/components/TabBar.js';
 import { ToastBar } from '/static/components/ToastBar.js';
+import { SearchableSelect } from '/static/components/SearchableSelect.js';
+import { showToast } from '/static/lib/toast.js';
 
 function App() {
     const now = new Date();
@@ -24,6 +26,10 @@ function App() {
     const [categories, setCategories] = useState([]);
     const [mortgageData, setMortgageData] = useState(null);
     const [ready, setReady] = useState(false);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [addForm, setAddForm] = useState({ date: '', account: 'bca', category: '', amount: '', description: '' });
+    const [addErrors, setAddErrors] = useState({});
+    const [addSaving, setAddSaving] = useState(false);
 
     useEffect(() => {
         fetchCSRF().then(() => setReady(true));
@@ -71,6 +77,52 @@ function App() {
         fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d && !d.error) setMonthData(d); });
     }, [account, year, month]);
 
+    const editCategories = categories.filter(c => !c.is_exclude);
+
+    function openAdd() {
+        const today = new Date().toISOString().slice(0, 10);
+        setAddForm({ date: today, account: account, category: '', amount: '', description: '' });
+        setAddErrors({});
+        setShowAddModal(true);
+    }
+
+    function closeAdd() {
+        setShowAddModal(false);
+        setAddErrors({});
+    }
+
+    function clearAddError(field) {
+        if (addErrors[field]) setAddErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
+    }
+
+    async function handleAddSubmit(e) {
+        e.preventDefault();
+        const newErrors = {};
+        if (!addForm.category) newErrors.category = true;
+        if (!addForm.amount || parseInt(addForm.amount) <= 0) newErrors.amount = true;
+        if (Object.keys(newErrors).length > 0) {
+            setAddErrors(newErrors);
+            return;
+        }
+        setAddSaving(true);
+        const result = await apiPost('/api/transaction', {
+            date: addForm.date,
+            account: addForm.account,
+            category: addForm.category,
+            amount: parseInt(addForm.amount),
+            description: addForm.description,
+        });
+        setAddSaving(false);
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Transaction added');
+            closeAdd();
+            reloadMonth();
+            fetchJSON(`/api/balance?account=${account}`).then(d => { if (d && !d.error) setBalance(d); });
+        }
+    }
+
     function refreshAll() {
         return Promise.all([
             fetchJSON(`/api/month?account=${account}&year=${year}&month=${month}`).then(d => { if (d && !d.error) setMonthData(d); }),
@@ -106,15 +158,69 @@ function App() {
             onPrev=${prevMonth}
             onNext=${nextMonth}
             onAccountChange=${setAccount}
-            showAccount=${view !== 'mortgage' && view !== 'recurring'}
+            showAccount=${view !== 'mortgage'}
         />
         <main id="content">
             ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
-            ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} />`}
+            ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} account=${account} />`}
         </main>
-        <${TabBar} active=${view} onChange=${setView} />
+        <${TabBar} active=${view} onChange=${setView} onAdd=${openAdd} />
+        ${showAddModal && html`
+            <div class="modal-overlay" onClick=${closeAdd}>
+                <div class="modal" onClick=${e => e.stopPropagation()}>
+                    <div class="modal-header">
+                        <span class="modal-title">Add Transaction</span>
+                        <button class="btn-icon" onClick=${closeAdd}>✕</button>
+                    </div>
+                    <form class="modal-form" onSubmit=${handleAddSubmit}>
+                        <div class="form-field">
+                            <label>Date</label>
+                            <input type="date" value=${addForm.date}
+                                onInput=${e => setAddForm({ ...addForm, date: e.target.value })} />
+                        </div>
+                        <div class="form-field">
+                            <label>Account</label>
+                            <select value=${addForm.account}
+                                onChange=${e => setAddForm({ ...addForm, account: e.target.value })}>
+                                ${accounts.map(a => html`<option key=${a.id} value=${a.id}>${a.id.toUpperCase()}</option>`)}
+                            </select>
+                        </div>
+                        <div class="form-field${addErrors.amount ? ' has-error' : ''}">
+                            <label>Amount</label>
+                            <input type="number" placeholder="Amount" value=${addForm.amount}
+                                onInput=${e => { setAddForm({ ...addForm, amount: e.target.value }); clearAddError('amount'); }} />
+                            ${addErrors.amount && html`<span class="field-error">Required</span>`}
+                        </div>
+                        <div class="form-field${addErrors.category ? ' has-error' : ''}">
+                            <label>Category</label>
+                            <${SearchableSelect}
+                                options=${editCategories.map(c => ({
+                                    value: c.name,
+                                    label: c.name.includes(':') ? c.name.replace(':', ' - ') : c.name,
+                                    color: c.color,
+                                }))}
+                                value=${addForm.category}
+                                onChange=${val => { setAddForm({ ...addForm, category: val }); clearAddError('category'); }}
+                                placeholder="Select category"
+                                hasError=${!!addErrors.category}
+                            />
+                            ${addErrors.category && html`<span class="field-error">Required</span>`}
+                        </div>
+                        <div class="form-field">
+                            <label>Description (Optional)</label>
+                            <input type="text" placeholder="Description (optional)" value=${addForm.description}
+                                onInput=${e => setAddForm({ ...addForm, description: e.target.value })} />
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary" disabled=${addSaving}>${addSaving ? 'Saving...' : 'Save'}</button>
+                            <button type="button" class="btn-secondary" onClick=${closeAdd}>Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        `}
         <${ToastBar} />
     `;
 }

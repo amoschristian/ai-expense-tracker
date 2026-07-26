@@ -1,10 +1,11 @@
 import { useState } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
-import { DEFAULT_COLOR, fmtRp, getCatColor, shortDate, apiPut } from '/static/lib/utils.js';
+import { DEFAULT_COLOR, fmtRp, getCatColor, shortDate, apiPut, apiDelete } from '/static/lib/utils.js';
 import { showToast } from '/static/lib/toast.js';
 import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
 import { Spinner } from '/static/components/Spinner.js';
+import { SearchableSelect } from '/static/components/SearchableSelect.js';
 
 export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
@@ -15,6 +16,7 @@ export function TransactionView({ data, categories, onUpdated }) {
     const [form, setForm] = useState({ category: '', amount: '', description: '', date: '' });
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     if (!data) {
         return html`<${Spinner} text="Loading transactions..." />`;
@@ -109,6 +111,19 @@ export function TransactionView({ data, categories, onUpdated }) {
         }
     }
 
+    async function handleDelete() {
+        setDeleting(true);
+        const result = await apiDelete(`/api/transaction/${editing.id}`);
+        setDeleting(false);
+        if (result.error) {
+            showToast(result.error, 'error');
+        } else {
+            showToast('Transaction deleted');
+            closeModal();
+            if (onUpdated) onUpdated();
+        }
+    }
+
     return html`
         <section class="view">
             <div class="tx-filters">
@@ -120,14 +135,20 @@ export function TransactionView({ data, categories, onUpdated }) {
                     value=${query}
                     onInput=${e => setQuery(e.target.value)}
                 />
-                <select value=${catFilter} onChange=${e => setCatFilter(e.target.value)}>
-                    <option value="">All categories</option>
-                    ${sortedCats.map(c => {
-                        const isChild = c.includes(':');
-                        const label = isChild ? '- ' + getChildName(c) : c;
-                        return html`<option key=${c} value=${c}>${label}</option>`;
-                    })}
-                </select>
+                <${SearchableSelect}
+                    options=${(() => {
+                        const colorMap = {};
+                        categories.forEach(cat => { colorMap[cat.name] = cat.color; });
+                        return sortedCats.map(c => ({
+                            value: c,
+                            label: c.includes(':') ? c.replace(':', ' - ') : c,
+                            color: colorMap[c] || DEFAULT_COLOR,
+                        }));
+                    })()}
+                    value=${catFilter}
+                    onChange=${setCatFilter}
+                    placeholder="All categories"
+                />
             </div>
             <div class="tx-date-filters">
                 <input
@@ -200,14 +221,17 @@ export function TransactionView({ data, categories, onUpdated }) {
                             </div>
                             <div class="form-field${errors.category ? ' has-error' : ''}">
                                 <label>Category</label>
-                                <select value=${form.category} onChange=${e => { setForm({ ...form, category: e.target.value }); clearError('category'); }}>
-                                    <option value="">Select category</option>
-                                    ${editCategories.map(c => {
-                                        const isChild = c.name.includes(':');
-                                        const label = isChild ? '- ' + getChildName(c.name) : c.name;
-                                        return html`<option key=${c.name} value=${c.name}>${label}</option>`;
-                                    })}
-                                </select>
+                                <${SearchableSelect}
+                                    options=${editCategories.map(c => ({
+                                        value: c.name,
+                                        label: c.name.includes(':') ? c.name.replace(':', ' - ') : c.name,
+                                        color: c.color,
+                                    }))}
+                                    value=${form.category}
+                                    onChange=${val => { setForm({ ...form, category: val }); clearError('category'); }}
+                                    placeholder="Select category"
+                                    hasError=${!!errors.category}
+                                />
                                 ${errors.category && html`<span class="field-error">Required</span>`}
                             </div>
                             <div class="form-field">
@@ -218,6 +242,11 @@ export function TransactionView({ data, categories, onUpdated }) {
                             <div class="form-actions">
                                 <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : 'Save'}</button>
                                 <button type="button" class="btn-secondary" onClick=${closeModal}>Cancel</button>
+                            </div>
+                            <div class="form-actions form-actions-danger">
+                                <button type="button" class="btn-danger-full" onClick=${handleDelete} disabled=${deleting}>
+                                    ${deleting ? 'Deleting...' : 'Delete Transaction'}
+                                </button>
                             </div>
                         </form>
                     </div>

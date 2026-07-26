@@ -23,7 +23,9 @@ from db import (
     get_trend,
     get_transactions,
     init_db,
+    pay_recurring,
     set_balance,
+    unpay_recurring,
     update_recurring_expense,
 )
 from db import get_db
@@ -340,6 +342,36 @@ def api_recurring_delete(item_id):
     deleted = delete_recurring_expense(item_id)
     if not deleted:
         return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/recurring/<int:item_id>/pay", methods=["POST"])
+def api_recurring_pay(item_id):
+    data = request.get_json() or {}
+    date_str = data.get("date", date.today().isoformat())
+
+    try:
+        y = int(date_str[:4])
+        int(date_str[5:7])
+    except (ValueError, IndexError):
+        return jsonify({"error": "date must be YYYY-MM-DD"}), 400
+
+    tx_id = pay_recurring(item_id, date_str)
+    if tx_id is None:
+        return jsonify({"error": "recurring expense not found"}), 404
+    return jsonify({"ok": True, "tx_id": tx_id})
+
+
+@app.route("/api/recurring/<int:item_id>/pay", methods=["DELETE"])
+def api_recurring_unpay(item_id):
+    data = request.get_json() or {}
+    today = date.today()
+    year = int(data.get("year", today.year))
+    month = int(data.get("month", today.month))
+
+    deleted = unpay_recurring(item_id, year, month)
+    if not deleted:
+        return jsonify({"error": "no payment found for this month"}), 404
     return jsonify({"ok": True})
 
 

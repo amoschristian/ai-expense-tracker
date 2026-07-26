@@ -70,6 +70,11 @@ def init_db() -> None:
                 end_date TEXT
             );
         """)
+        # Migration: add recurring_id to transactions if not present
+        cols = conn.execute("PRAGMA table_info(transactions)").fetchall()
+        col_names = [c["name"] for c in cols]
+        if "recurring_id" not in col_names:
+            conn.execute("ALTER TABLE transactions ADD COLUMN recurring_id INTEGER REFERENCES recurring_expenses(id)")
         seed_categories(conn)
 
 
@@ -199,18 +204,21 @@ def get_balance(account: str) -> dict | None:
             return None
 
         latest = conn.execute(
-            "SELECT year, month FROM transactions WHERE account=? ORDER BY year DESC, month DESC LIMIT 1",
+            "SELECT year, month, date FROM transactions WHERE account=? ORDER BY date DESC LIMIT 1",
             (account,),
         ).fetchone()
 
         if latest:
             bal = _compute_balance(conn, account, latest["year"], latest["month"])
-            y, m = latest["year"], latest["month"]
+            y, m, latest_date = latest["year"], latest["month"], latest["date"]
         else:
             bal = acc["balance"]
-            y, m = 2026, 1
+            y, m, latest_date = 2026, 1, None
 
-        return {"account": account, "balance": bal, "year": y, "month": m}
+        result = {"account": account, "balance": bal, "year": y, "month": m}
+        if latest_date:
+            result["latest_date"] = latest_date
+        return result
 
 
 def set_balance(account: str, balance: int) -> None:
@@ -261,7 +269,20 @@ def get_recurring_expenses() -> list[dict]:
                LEFT JOIN categories c ON r.category_id = c.id
                ORDER BY r.name"""
         ).fetchall()
-        return [dict(r) for r in rows]
+        today = __import__('datetime').date.today()
+        result = []
+        for r in rows:
+            item = dict(r)
+            # Check if paid this month
+            paid_tx = conn.execute(
+                "SELECT id, date FROM transactions WHERE recurring_id=? AND year=? AND month=? LIMIT 1",
+                (item["id"], today.year, today.month),
+            ).fetchone()
+            item["paid"] = paid_tx is not None
+            item["paid_tx_id"] = paid_tx["id"] if paid_tx else None
+            item["paid_date"] = paid_tx["date"] if paid_tx else None
+            result.append(item)
+        return result
 
 
 def add_recurring_expense(data: dict) -> int:
@@ -316,5 +337,38 @@ def update_recurring_expense(item_id: int, data: dict) -> bool:
 def delete_recurring_expense(item_id: int) -> bool:
     with get_db() as conn:
         cur = conn.execute("DELETE FROM recurring_expenses WHERE id=?", (item_id,))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def pay_recurring(item_id: int, date_str: str) -> int | None:
+    """Create a transaction for a recurring expense. Returns transaction id or None."""
+    with get_db() as conn:
+        rec = conn.execute(
+            "SELECT r.*, c.name as cat_name FROM recurring_expenses r JOIN categories c ON r.category_id=c.id WHERE r.id=?",
+            (item_id,),
+        ).fetchone()
+        if not rec:
+            return None
+
+        y = int(date_str[:4])
+        m = int(date_str[5:7])
+
+        cur = conn.execute(
+            """INSERT INTO transactions (date, category_id, amount, description, account, year, month, recurring_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (date_str, rec["category_id"], rec["amount"], rec["name"], rec["account"], y, m, item_id),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def unpay_recurring(item_id: int, year: int, month: int) -> bool:
+    """Delete the payment transaction for a recurring expense in the given month."""
+    with get_db() as conn:
+        cur = conn.execute(
+            "DELETE FROM transactions WHERE recurring_id=? AND year=? AND month=?",
+            (item_id, year, month),
+        )
         conn.commit()
         return cur.rowcount > 0
