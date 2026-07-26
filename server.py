@@ -108,7 +108,6 @@ def api_balance():
 
 
 @app.route("/api/balance", methods=["POST"])
-@csrf_required
 def api_set_balance():
     data = request.get_json()
     required = ["account", "balance"]
@@ -120,7 +119,6 @@ def api_set_balance():
 
 
 @app.route("/api/transaction", methods=["POST"])
-@csrf_required
 def api_add_transaction():
     data = request.get_json()
     required = ["date", "category", "amount", "account"]
@@ -187,7 +185,6 @@ def api_search_transactions():
 
 
 @app.route("/api/transaction/<int:tx_id>", methods=["PUT"])
-@csrf_required
 def api_update_transaction(tx_id):
     data = request.get_json()
     required = ["category", "amount"]
@@ -230,7 +227,6 @@ def api_update_transaction(tx_id):
 
 
 @app.route("/api/transaction/<int:tx_id>", methods=["DELETE"])
-@csrf_required
 def api_delete_transaction(tx_id):
     with get_db() as conn:
         existing = conn.execute("SELECT id FROM transactions WHERE id=?", (tx_id,)).fetchone()
@@ -294,7 +290,6 @@ def api_recurring_list():
 
 
 @app.route("/api/recurring", methods=["POST"])
-@csrf_required
 def api_recurring_add():
     data = request.get_json()
     required = ["name", "amount", "category", "account", "start_date"]
@@ -309,7 +304,6 @@ def api_recurring_add():
 
 
 @app.route("/api/recurring/<int:item_id>", methods=["PUT"])
-@csrf_required
 def api_recurring_update(item_id):
     data = request.get_json()
     required = ["name", "amount", "category", "account", "start_date"]
@@ -324,7 +318,6 @@ def api_recurring_update(item_id):
 
 
 @app.route("/api/recurring/<int:item_id>", methods=["PATCH"])
-@csrf_required
 def api_recurring_patch(item_id):
     existing = get_recurring_expense(item_id)
     if not existing:
@@ -343,7 +336,6 @@ def api_recurring_patch(item_id):
 
 
 @app.route("/api/recurring/<int:item_id>", methods=["DELETE"])
-@csrf_required
 def api_recurring_delete(item_id):
     deleted = delete_recurring_expense(item_id)
     if not deleted:
