@@ -9,20 +9,30 @@ const icons = {
 
 const labels = { summary: 'Summary', transactions: 'Transactions', mortgage: 'Mortgage', recurring: 'Recurring' };
 
-export function TabBar({ active, onChange }) {
+export function TabBar({ active, onChange, onAdd }) {
     const tabs = ['summary', 'transactions', 'mortgage', 'recurring'];
-    return html`
-        <nav id="tab-bar">
-            ${tabs.map(t => html`
-                <button
-                    key=${t}
-                    class=${'tab' + (active === t ? ' active' : '')}
-                    onClick=${() => onChange(t)}
-                >
-                    <span class="tab-icon">${icons[t]}</span>
-                    <span class="tab-label">${labels[t]}</span>
+    const items = [];
+    tabs.forEach((t, i) => {
+        items.push(html`
+            <button
+                key=${t}
+                class=${'tab' + (active === t ? ' active' : '')}
+                onClick=${() => onChange(t)}
+            >
+                <span class="tab-icon">${icons[t]}</span>
+                <span class="tab-label">${labels[t]}</span>
+            </button>
+        `);
+        if (i === 1 && onAdd) {
+            items.push(html`
+                <button key="add" class="tab-add" onClick=${onAdd} aria-label="Add transaction">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
                 </button>
-            `)}
-        </nav>
-    `;
+            `);
+        }
+    });
+    return html`<nav id="tab-bar">${items}</nav>`;
 }
