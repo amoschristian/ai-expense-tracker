@@ -603,6 +603,11 @@ main {
 .tab:active { opacity: 0.7; }
 
 .tab-add {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: -5px;
+    z-index: 11;
     background: var(--green);
     border: none;
     color: var(--bg);
@@ -615,12 +620,15 @@ main {
     cursor: pointer;
     box-shadow: 0 4px 14px rgba(158, 206, 106, 0.4);
     transition: transform 0.15s, box-shadow 0.15s;
-    margin-top: -16px;
-    flex-shrink: 0;
 }
 .tab-add:active {
-    transform: scale(0.92);
+    transform: translateX(-50%) scale(0.92);
     box-shadow: 0 2px 6px rgba(158, 206, 106, 0.3);
+}
+
+.tab-add-spacer {
+    width: 48px;
+    flex-shrink: 0;
 }
 
 .tab-icon {
