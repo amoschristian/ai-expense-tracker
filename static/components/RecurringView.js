@@ -10,7 +10,7 @@ import { SearchableSelect } from '/static/components/SearchableSelect.js';
 export function RecurringView({ categories, accounts, account }) {
     const [items, setItems] = useState(null);
     const [editing, setEditing] = useState(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateStr();
     const [form, setForm] = useState({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [errors, setErrors] = useState({});
@@ -42,7 +42,7 @@ export function RecurringView({ categories, accounts, account }) {
     }
 
     function resetForm() {
-        const t = new Date().toISOString().slice(0, 10);
+        const t = localDateStr();
         setForm({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: t, end_date: '' });
         setEditing(null);
         setErrors({});
@@ -56,7 +56,7 @@ export function RecurringView({ categories, accounts, account }) {
             account: item.account,
             frequency: item.frequency,
             day_of_month: item.day_of_month || '',
-            start_date: item.start_date || new Date().toISOString().slice(0, 10),
+            start_date: item.start_date || localDateStr(),
             end_date: '',
         });
         setEditing(item.id);
@@ -109,7 +109,7 @@ export function RecurringView({ categories, accounts, account }) {
 
     async function handlePay(id) {
         setSaving(true);
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = localDateStr();
         const result = await apiPost(`/api/recurring/${id}/pay`, { date: todayStr });
         setSaving(false);
         if (result.error) {
@@ -245,3 +245,9 @@ export function RecurringView({ categories, accounts, account }) {
         </section>
     `;
 }
+
+function localDateStr() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
