@@ -125,6 +125,28 @@ export function TransactionView({ data, categories, onUpdated }) {
         }
     }
 
+    function setThisWeek() {
+        const now = new Date();
+        const day = now.getDay(); // 0=Sun
+        const diffToMon = (day + 6) % 7; // days since Monday
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - diffToMon);
+        const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        setDateFrom(fmt(mon));
+        setDateTo(fmt(now));
+    }
+
+    const isThisWeek = (() => {
+        if (!dateFrom || !dateTo) return false;
+        const now = new Date();
+        const day = now.getDay();
+        const diffToMon = (day + 6) % 7;
+        const mon = new Date(now);
+        mon.setDate(now.getDate() - diffToMon);
+        const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        return dateFrom === fmt(mon) && dateTo === fmt(now);
+    })();
+
     return html`
         <section class="view">
             <div class="tx-filters">
@@ -165,6 +187,7 @@ export function TransactionView({ data, categories, onUpdated }) {
                     value=${dateTo}
                     onInput=${e => setDateTo(e.target.value)}
                 />
+                <button class="btn-chip${isThisWeek ? ' active' : ''}" onClick=${setThisWeek}>This week</button>
                 ${(dateFrom || dateTo) && html`
                     <button class="btn-icon tx-date-clear" onClick=${() => { setDateFrom(''); setDateTo(''); }}>✕</button>
                 `}

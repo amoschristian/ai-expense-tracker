@@ -1459,3 +1459,39 @@ input.ss-input:focus {
 .cashflow-labels {
     display: none;
 }
+
+/* Quick-pick category chips (Add modal) */
+.quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.quick-chip {
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #3b4261);
+    background: var(--bg, #1a1b26);
+    color: var(--text, #a9b1d6);
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.quick-chip:hover { border-color: var(--blue, #7aa2f7); color: var(--blue, #7aa2f7); }
+.quick-chip.active { border-color: var(--blue, #7aa2f7); background: rgba(122, 162, 247, 0.15); color: var(--blue, #7aa2f7); }
+
+/* This week shortcut (transactions date filter) */
+.btn-chip {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border, #3b4261);
+    background: transparent;
+    color: var(--text-dim, #565f89);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.btn-chip:hover { border-color: var(--blue, #7aa2f7); color: var(--blue, #7aa2f7); }
+.btn-chip.active { border-color: var(--blue, #7aa2f7); background: rgba(122, 162, 247, 0.15); color: var(--blue, #7aa2f7); }

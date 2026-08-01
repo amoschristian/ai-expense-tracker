@@ -79,6 +79,20 @@ function App() {
 
     const editCategories = categories.filter(c => !c.is_exclude);
 
+    // Top 5 most-used expense categories this month (quick-pick chips)
+    const topCategories = (() => {
+        if (!monthData || !monthData.transactions) return [];
+        const counts = {};
+        monthData.transactions.forEach(t => {
+            if (t.is_income) return;
+            counts[t.category] = (counts[t.category] || 0) + 1;
+        });
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([cat]) => cat);
+    })();
+
     function openAdd() {
         const today = new Date().toISOString().slice(0, 10);
         setAddForm({ date: today, account: account, category: '', amount: '', description: '' });
@@ -195,6 +209,16 @@ function App() {
                         </div>
                         <div class="form-field${addErrors.category ? ' has-error' : ''}">
                             <label>Category</label>
+                            ${topCategories.length > 0 && html`
+                                <div class="quick-chips">
+                                    ${topCategories.map(c => html`
+                                        <button type="button" class="quick-chip${addForm.category === c ? ' active' : ''}"
+                                            onClick=${() => { setAddForm({ ...addForm, category: c }); clearAddError('category'); }}>
+                                            ${c.includes(':') ? c.replace(':', ' · ') : c}
+                                        </button>
+                                    `)}
+                                </div>
+                            `}
                             <${SearchableSelect}
                                 options=${editCategories.map(c => ({
                                     value: c.name,
