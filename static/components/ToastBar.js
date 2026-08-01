@@ -6,9 +6,9 @@ export function ToastBar() {
     const [toasts, setToasts] = useState([]);
 
     useEffect(() => {
-        return addToastListener((message, type) => {
+        return addToastListener((message, type, action) => {
             const id = Date.now() + Math.random();
-            setToasts(prev => [...prev, { id, message, type }]);
+            setToasts(prev => [...prev, { id, message, type, action }]);
             setTimeout(() => {
                 setToasts(prev => prev.filter(t => t.id !== id));
             }, 3000);
@@ -22,6 +22,7 @@ export function ToastBar() {
             ${toasts.map(t => html`
                 <div key=${t.id} class="toast toast-${t.type}">
                     <span>${t.message}</span>
+                    ${t.action ? html`<button class="toast-action" onClick=${() => { t.action.onClick(); setToasts(prev => prev.filter(x => x.id !== t.id)); }}>${t.action.label}</button>` : ''}
                     <button class="toast-close" onClick=${() => setToasts(prev => prev.filter(x => x.id !== t.id))}>✕</button>
                 </div>
             `)}

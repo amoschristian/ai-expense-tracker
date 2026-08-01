@@ -115,19 +115,35 @@ export function RecurringView({ categories, accounts, account }) {
         if (result.error) {
             showToast(result.error, 'error');
         } else {
-            showToast('Marked as paid');
+            const paidItem = items && items.find(i => i.id === id);
+            const label = paidItem ? `${paidItem.name} — ${fmtRp(paidItem.amount)}` : `Recurring #${id}`;
+            showToast(`Paid: ${label}`, 'success', {
+                label: 'Undo',
+                onClick: async () => {
+                    const undoRes = await apiDelete(`/api/transaction/${result.tx_id}`);
+                    if (undoRes.error) showToast(undoRes.error, 'error'); else load();
+                }
+            });
             load();
         }
     }
 
     async function handleUnpay(id) {
         setSaving(true);
+        const paidItem = items && items.find(i => i.id === id);
+        const paidDate = paidItem ? paidItem.paid_date : null;
         const result = await apiDelete(`/api/recurring/${id}/pay`);
         setSaving(false);
         if (result.error) {
             showToast(result.error, 'error');
         } else {
-            showToast('Payment undone');
+            showToast('Payment undone', 'success', {
+                label: 'Undo',
+                onClick: async () => {
+                    const undoRes = await apiPost(`/api/recurring/${id}/pay`, { date: paidDate || localDateStr() });
+                    if (undoRes.error) showToast(undoRes.error, 'error'); else load();
+                }
+            });
             load();
         }
     }

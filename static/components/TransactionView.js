@@ -17,6 +17,7 @@ export function TransactionView({ data, categories, onUpdated }) {
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     if (!data) {
         return html`<${Spinner} text="Loading transactions..." />`;
@@ -244,9 +245,23 @@ export function TransactionView({ data, categories, onUpdated }) {
                                 <button type="button" class="btn-secondary" onClick=${closeModal}>Cancel</button>
                             </div>
                             <div class="form-actions form-actions-danger">
-                                <button type="button" class="btn-danger-full" onClick=${handleDelete} disabled=${deleting}>
-                                    ${deleting ? 'Deleting...' : 'Delete Transaction'}
-                                </button>
+                                ${confirmDelete
+                                    ? html`
+                                        <div style="display:flex; gap:8px; width:100%;">
+                                            <button type="button" class="btn-danger-full" style="flex:1;" onClick=${handleDelete} disabled=${deleting}>
+                                                ${deleting ? 'Deleting...' : '✓ Confirm delete'}
+                                            </button>
+                                            <button type="button" class="btn-secondary" style="flex:1;" onClick=${() => setConfirmDelete(false)} disabled=${deleting}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                        <div class="form-help" style="text-align:center; color: var(--red); margin-top: 6px;">This permanently removes the transaction. Are you sure?</div>
+                                    `
+                                    : html`
+                                        <button type="button" class="btn-danger-full" onClick=${() => setConfirmDelete(true)} disabled=${deleting}>
+                                            Delete Transaction
+                                        </button>
+                                    `}
                             </div>
                         </form>
                     </div>
