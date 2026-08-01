@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/hooks';
+import { useState, useEffect, useCallback, useRef } from 'https://esm.sh/preact@10.25.4/hooks';
 import { render } from 'https://esm.sh/preact@10.25.4';
 import { html } from '/static/lib/html.js';
-import PullToRefresh from 'https://esm.sh/pulltorefreshjs@0.1.22';
 import { fetchJSON, fetchCSRF, apiPost } from '/static/lib/utils.js';
 import { Header } from '/static/components/Header.js';
 import { SummaryView } from '/static/components/SummaryView.js';
@@ -149,19 +148,100 @@ function App() {
         ]);
     }
 
+    // Always call the latest refreshAll (avoids stale account/month closure)
+    const refreshAllRef = useRef(refreshAll);
+    refreshAllRef.current = refreshAll;
+
+    // Custom pull-to-refresh scoped to the touch surface (main#content).
+    // The page scrolls on the window (main grows to content height), so the
+    // at-top check anchors on window.scrollY — never main.scrollTop, which is
+    // always 0. The non-passive touchmove listener attaches only while armed
+    // at the top, so normal scrolling is never intercepted.
     useEffect(() => {
-        const ptr = PullToRefresh.init({
-            mainElement: '#content',
-            triggerElement: '#content',
-            distThreshold: 60,
-            onRefresh() {
-                return refreshAll();
-            },
-            shouldPullToRefresh() {
-                return this.mainElement.scrollTop <= 0;
-            },
-        });
-        return () => PullToRefresh.destroyAll();
+        const main = document.getElementById('content');
+        if (!main || !('ontouchstart' in window)) return;
+
+        const THRESHOLD = 50;
+        const MAX_PULL = 80;
+        let startY = null;
+        let pulling = false;
+        let dist = 0;
+        let indicator = null;
+
+        function isAtTop() {
+            return (window.scrollY || document.documentElement.scrollTop || 0) <= 0;
+        }
+
+        function ensureIndicator() {
+            if (indicator) return;
+            indicator = document.createElement('div');
+            indicator.className = 'ptr--pull';
+            indicator.innerHTML =
+                '<span class="ptr--icon">&#8681;</span>' +
+                '<span class="ptr--text">Pull down to refresh</span>';
+            main.appendChild(indicator);
+        }
+
+        function hideIndicator() {
+            if (!indicator) return;
+            indicator.classList.remove('ptr--active', 'ptr--release', 'ptr--refreshing');
+            indicator.querySelector('.ptr--icon').innerHTML = '&#8681;';
+            indicator.querySelector('.ptr--text').textContent = 'Pull down to refresh';
+        }
+
+        function onTouchStart(e) {
+            if (!isAtTop()) return;
+            startY = e.touches[0].clientY;
+            pulling = false;
+            dist = 0;
+            main.addEventListener('touchmove', onTouchMove, { passive: false });
+        }
+
+        function onTouchMove(e) {
+            if (startY === null) return;
+            const dy = e.touches[0].clientY - startY;
+            if (dy <= 0 || !isAtTop()) return;
+            if (!pulling) {
+                if (dy < 8) return; // avoid micro-flash on tiny accidental drags
+                pulling = true;
+                ensureIndicator();
+                indicator.classList.add('ptr--active');
+            }
+            dist = Math.min(MAX_PULL, dy * 0.5);
+            indicator.classList.toggle('ptr--release', dist >= THRESHOLD);
+            e.preventDefault();
+        }
+
+        function onTouchEnd() {
+            main.removeEventListener('touchmove', onTouchMove);
+            const wasPulling = pulling;
+            const shouldRefresh = wasPulling && dist >= THRESHOLD;
+            startY = null;
+            pulling = false;
+            dist = 0;
+            if (!wasPulling) return;
+            if (shouldRefresh) {
+                indicator.classList.add('ptr--refreshing');
+                indicator.classList.remove('ptr--release');
+                indicator.querySelector('.ptr--icon').innerHTML = '<span class="ptr--spinner"></span>';
+                indicator.querySelector('.ptr--text').textContent = 'Refreshing…';
+                refreshAllRef.current().then(hideIndicator, hideIndicator);
+            } else {
+                hideIndicator();
+            }
+        }
+
+        main.addEventListener('touchstart', onTouchStart, { passive: true });
+        main.addEventListener('touchend', onTouchEnd, { passive: true });
+        main.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+        return () => {
+            main.removeEventListener('touchmove', onTouchMove);
+            main.removeEventListener('touchstart', onTouchStart);
+            main.removeEventListener('touchend', onTouchEnd);
+            main.removeEventListener('touchcancel', onTouchEnd);
+            if (indicator && indicator.parentNode) indicator.parentNode.removeChild(indicator);
+        };
     }, []);
 
     return html`
