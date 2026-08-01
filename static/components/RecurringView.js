@@ -162,11 +162,25 @@ export function RecurringView({ categories, accounts, account }) {
         return sum;
     }, 0);
 
+    const paidMonthly = filteredItems.reduce((sum, item) => {
+        if (!item.paid) return sum;
+        if (item.frequency === 'monthly') return sum + item.amount;
+        if (item.frequency === 'yearly') return sum + Math.round(item.amount / 12);
+        if (item.frequency === 'weekly') return sum + Math.round(item.amount * 4.33);
+        return sum;
+    }, 0);
+
+    const remainingMonthly = Math.max(totalMonthly - paidMonthly, 0);
+
     return html`
         <section class="view">
             <div class="card balance-card">
                 <div class="label">Monthly Recurring</div>
                 <div class="value red">${fmtRp(totalMonthly)}</div>
+                <div class="recurring-paid-breakdown">
+                    <span class="paid-part">Paid ${fmtRp(paidMonthly)}</span>
+                    <span class="remain-part">Remaining ${fmtRp(remainingMonthly)}</span>
+                </div>
             </div>
 
             <div class="card">
@@ -233,7 +247,7 @@ export function RecurringView({ categories, accounts, account }) {
                 </form>
             </div>
 
-            <div class="card">
+            <div class="recurring-list">
                 <div class="card-title">Recurring Expenses (${filteredItems.length})</div>
                 ${filteredItems.length ? filteredItems.map(item => {
                     const color = item.color || DEFAULT_COLOR;

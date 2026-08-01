@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Expense Dashboard</title>
     <link rel="manifest" href="/static/manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#0e0f13">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Expenses">
@@ -13,7 +13,15 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<!--
+THESIS: A personal money journal that feels like a calm, warm instrument - dark charcoal, one soft amber accent, income green / expense red as the only semantic colors, generous rounded surfaces, and motion that rewards every tap. Refuses the neon-terminal look and the flat light fintech default.
+OWN-WORLD: Deep warm charcoal ground (#0e0f13) with layered surfaces (#16181f -> #1d2029), a single amber accent (#d9a15f) for primary actions and active states, soft elevation shadows with real offset+blur, 18px card radii, 999px pills, tabular-nums money figures, springy exponential ease-out motion.
+STORY: The user glances at a warm, quiet balance card, taps +, and the modal springs in with a blurred backdrop; every paid item settles with a green check, every expense reads red, and the app answers each touch with a soft press.
+FIRST VIEWPORT: Balance card centered at top with the month header and account selector above it in the shared header (kept in the header on every page for cross-view consistency per user); big tabular-nums balance, last-transaction line in green; + FAB floats in the tab bar.
+FORM: User-pinned brief (dark, sleek, subtle rounded corners, consistent soft color, satisfying interaction), key 5debaf3c superseded by steer; income green and expense red are semantic constants.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
+-->
     <div id="app"></div>
-    <script type="module" src="/static/app.js?v=2"></script>
+    <script type="module" src="/static/app.js?v=3"></script>
 </body>
 </html>
