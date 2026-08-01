@@ -1433,6 +1433,36 @@ input.ss-input:focus {
     background-position: right 12px center;
 }
 
+
+/* Food Budget widget */
+.food-budget-card { }
+.food-budget-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+}
+.food-budget-row:last-of-type { border-bottom: none; }
+.food-budget-label {
+    font-size: 0.85rem;
+    color: var(--dim);
+}
+.food-budget-value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.food-budget-value.green { color: #9ece6a; }
+.food-budget-status {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: center;
+}
+
 /* Toast */
 .toast-container {
     position: fixed;
