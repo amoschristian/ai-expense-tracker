@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'https://esm.sh/preact@10.25.4/hooks';
 import { html } from '/static/lib/html.js';
-import { Calendar } from 'https://esm.sh/lucide-preact@1.21.0?deps=preact@10.25.4';
+import { Calendar, Trash2 } from 'https://esm.sh/lucide-preact@1.21.0?deps=preact@10.25.4';
 import { DEFAULT_COLOR, fmtRp, fetchJSON, apiPost, apiPut, apiDelete } from '/static/lib/utils.js';
 import { showToast } from '/static/lib/toast.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
@@ -170,7 +170,22 @@ export function RecurringView({ categories, accounts, account }) {
             </div>
 
             <div class="card">
-                <div class="card-title">${editing ? 'Edit' : 'Add'} Recurring Expense</div>
+                <div class="card-header-row">
+                    <div class="card-title">${editing ? 'Edit' : 'Add'} Recurring Expense</div>
+                    ${editing && (confirmDelete === editing
+                        ? html`
+                            <div class="header-confirm">
+                                <button type="button" class="btn-header-danger" onClick=${() => handleDelete(editing)}>Delete</button>
+                                <button type="button" class="btn-header-ghost" onClick=${() => setConfirmDelete(null)}>Keep</button>
+                            </div>
+                        `
+                        : html`
+                            <button type="button" class="btn-header-icon btn-trash" onClick=${() => setConfirmDelete(editing)} title="Delete recurring expense">
+                                <${Trash2} size=${16} />
+                            </button>
+                        `
+                    )}
+                </div>
                 <form class="recurring-form" onSubmit=${handleSubmit}>
                     <div class="form-field${errors.name ? ' has-error' : ''}">
                         <input type="text" placeholder="Name" value=${form.name}
@@ -214,6 +229,7 @@ export function RecurringView({ categories, accounts, account }) {
                         <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : (editing ? 'Update' : 'Add')}</button>
                         ${editing && html`<button type="button" class="btn-secondary" onClick=${resetForm}>Cancel</button>`}
                     </div>
+
                 </form>
             </div>
 
@@ -222,39 +238,29 @@ export function RecurringView({ categories, accounts, account }) {
                 ${filteredItems.length ? filteredItems.map(item => {
                     const color = item.color || DEFAULT_COLOR;
                     return html`
-                        <div class="recurring-row${item.paid ? ' paid' : ''}" key=${item.id}>
+                        <div class="recurring-row${item.paid ? ' paid' : ''}" key=${item.id} onClick=${() => startEdit(item)}>
                             <div class="recurring-left">
                                 <div class="recurring-name" style=${{ color }}>${item.name}</div>
                                 <div class="recurring-cat">
                                     <${CategoryIcon} category=${item.category} size=${12} color=${color} />
                                     <span>${formatCategory(item.category)}</span>
                                 </div>
-                                <div class="recurring-freq">
-                                    <${Calendar} size=${11} />
-                                    ${formatFrequency(item)}
-                                    ${item.paid && html` · <span class="paid-tag">Paid ${item.paid_date}</span>`}
-                                </div>
                             </div>
                             <div class="recurring-right">
                                 <div class="recurring-amt">${fmtRp(item.amount)}</div>
+                                <div class="recurring-freq">
+                                    <${Calendar} size=${11} />
+                                    ${formatFrequency(item)}
+                                </div>
+                                ${item.paid && html`<div class="recurring-paid"><span class="paid-tag">Paid ${formatPaidDate(item.paid_date)}</span></div>`}
                             </div>
                             <div class="recurring-actions">
                                 ${item.paid
                                     ? html`
-                                        <button class="btn-paid" onClick=${() => handleUnpay(item.id)} title="Undo payment">Paid ✓</button>
+                                        <button class="btn-paid" onClick=${e => { e.stopPropagation(); handleUnpay(item.id); }} title="Undo payment">Paid ✓</button>
                                     `
                                     : html`
-                                        <button class="btn-pay" onClick=${() => handlePay(item.id)} disabled=${saving}>Pay</button>
-                                    `
-                                }
-                                <button class="btn-icon" onClick=${() => startEdit(item)}>✎</button>
-                                ${confirmDelete === item.id
-                                    ? html`
-                                        <button class="btn-icon btn-danger" onClick=${() => handleDelete(item.id)}>✓</button>
-                                        <button class="btn-icon" onClick=${() => setConfirmDelete(null)}>✗</button>
-                                    `
-                                    : html`
-                                        <button class="btn-icon btn-danger-outline" onClick=${() => setConfirmDelete(item.id)}>✕</button>
+                                        <button class="btn-pay" onClick=${e => { e.stopPropagation(); handlePay(item.id); }} disabled=${saving}>Pay</button>
                                     `
                                 }
                             </div>
@@ -264,6 +270,18 @@ export function RecurringView({ categories, accounts, account }) {
             </div>
         </section>
     `;
+}
+
+function formatPaidDate(dateStr) {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const d = parseInt(parts[2], 10);
+    const m = parseInt(parts[1], 10);
+    const y = parts[0];
+    if (!d || !m || m < 1 || m > 12) return dateStr;
+    return `${d} ${months[m - 1]} ${y}`;
 }
 
 function localDateStr() {

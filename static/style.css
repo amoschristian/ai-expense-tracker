@@ -1203,7 +1203,13 @@ input.ss-input:focus {
     align-items: flex-start;
     gap: 12px;
     padding: 12px 0;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s;
 }
+
+.recurring-row:hover { background: rgba(59, 66, 97, 0.18); }
+.recurring-row:active { background: rgba(59, 66, 97, 0.28); }
 
 .recurring-row + .recurring-row {
     border-top: 1px solid rgba(59, 66, 97, 0.4);
@@ -1217,9 +1223,9 @@ input.ss-input:focus {
 .recurring-name {
     font-size: 0.9rem;
     font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
 }
 
 .recurring-cat {
@@ -1231,25 +1237,35 @@ input.ss-input:focus {
     gap: 4px;
 }
 
-.recurring-freq {
-    font-size: 0.72rem;
-    color: var(--dim);
-    margin-top: 1px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
 .recurring-right {
     text-align: right;
     flex-shrink: 0;
     padding-top: 1px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
 }
 
 .recurring-amt {
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--text);
+}
+
+.recurring-freq {
+    font-size: 0.72rem;
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    line-height: 1.3;
+}
+
+.recurring-paid {
+    font-size: 0.75rem;
+    margin-top: 2px;
 }
 
 .recurring-actions {
@@ -1296,11 +1312,106 @@ input.ss-input:focus {
 .btn-danger-full:hover { background: rgba(247, 118, 142, 0.22); }
 .btn-danger-full:disabled { opacity: 0.4; cursor: default; }
 
+.card-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.card-header-row .card-title {
+    margin: 0;
+}
+
+.btn-header-icon {
+    background: none;
+    border: none;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 0.15s, transform 0.1s;
+    line-height: 1;
+}
+.btn-header-icon:active { transform: scale(0.9); }
+.btn-header-icon:hover { background: rgba(59, 66, 97, 0.4); }
+
+.btn-trash { color: var(--red); }
+
+.header-confirm {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.btn-header-danger {
+    background: var(--red);
+    border: none;
+    color: #1a1b26;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+}
+.btn-header-danger:active { transform: scale(0.96); }
+.btn-header-danger:hover { opacity: 0.9; }
+
+.btn-header-ghost {
+    background: var(--surface-hover);
+    border: none;
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+}
+.btn-header-ghost:active { transform: scale(0.96); }
+.btn-header-ghost:hover { background: var(--border); }
+
 .form-actions-danger {
     margin-top: 8px;
     padding-top: 12px;
     border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
 }
+
+.btn-delete-outline {
+    background: none;
+    border: 1px solid rgba(247, 118, 142, 0.4);
+    color: var(--red);
+    padding: 11px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.btn-delete-outline:active { transform: scale(0.98); }
+.btn-delete-outline:hover { background: rgba(247, 118, 142, 0.1); }
+
+.btn-delete {
+    background: var(--red);
+    border: none;
+    color: #1a1b26;
+    padding: 11px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+}
+.btn-delete:active { transform: scale(0.98); }
+.btn-delete:hover { opacity: 0.9; }
 
 .btn-pay {
     background: rgba(158, 206, 106, 0.15);
@@ -1309,10 +1420,12 @@ input.ss-input:focus {
     font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 3px 10px;
+    padding: 5px 12px;
+    min-width: 76px;
     border-radius: 6px;
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
+    text-align: center;
 }
 .btn-pay:hover { background: rgba(158, 206, 106, 0.25); }
 .btn-pay:active { transform: scale(0.94); }
@@ -1322,13 +1435,15 @@ input.ss-input:focus {
     background: rgba(158, 206, 106, 0.12);
     color: var(--green);
     border: 1px solid rgba(158, 206, 106, 0.2);
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
-    padding: 3px 8px;
+    padding: 5px 12px;
+    min-width: 76px;
     border-radius: 6px;
     transition: background 0.15s, transform 0.1s;
     white-space: nowrap;
+    text-align: center;
 }
 .btn-paid:hover { background: rgba(247, 118, 142, 0.15); color: var(--red); border-color: rgba(247, 118, 142, 0.3); }
 
