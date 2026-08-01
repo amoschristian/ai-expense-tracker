@@ -203,8 +203,8 @@ function App() {
                         </div>
                         <div class="form-field${addErrors.amount ? ' has-error' : ''}">
                             <label>Amount</label>
-                            <input type="number" placeholder="Amount" value=${addForm.amount}
-                                onInput=${e => { setAddForm({ ...addForm, amount: e.target.value }); clearAddError('amount'); }} />
+                            <input type="text" inputmode="numeric" placeholder="Amount" value=${addForm.amount ? Number(addForm.amount).toLocaleString('id-ID') : ''}
+                                onInput=${e => { const digits = e.target.value.replace(/\D/g, ''); setAddForm({ ...addForm, amount: digits }); clearAddError('amount'); }} />
                             ${addErrors.amount && html`<span class="field-error">Required</span>`}
                         </div>
                         <div class="form-field${addErrors.category ? ' has-error' : ''}">
