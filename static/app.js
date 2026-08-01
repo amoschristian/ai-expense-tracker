@@ -11,6 +11,7 @@ import { RecurringView } from '/static/components/RecurringView.js';
 import { TabBar } from '/static/components/TabBar.js';
 import { ToastBar } from '/static/components/ToastBar.js';
 import { SearchableSelect } from '/static/components/SearchableSelect.js';
+import { AmountInput } from '/static/components/AmountInput.js';
 import { showToast } from '/static/lib/toast.js';
 
 function App() {
@@ -203,8 +204,11 @@ function App() {
                         </div>
                         <div class="form-field${addErrors.amount ? ' has-error' : ''}">
                             <label>Amount</label>
-                            <input type="text" inputmode="numeric" placeholder="Amount" value=${addForm.amount ? Number(addForm.amount).toLocaleString('id-ID') : ''}
-                                onInput=${e => { const digits = e.target.value.replace(/\D/g, ''); setAddForm({ ...addForm, amount: digits }); clearAddError('amount'); }} />
+                            <${AmountInput}
+                                value=${addForm.amount}
+                                onInput=${digits => { setAddForm({ ...addForm, amount: digits }); clearAddError('amount'); }}
+                                hasError=${!!addErrors.amount}
+                            />
                             ${addErrors.amount && html`<span class="field-error">Required</span>`}
                         </div>
                         <div class="form-field${addErrors.category ? ' has-error' : ''}">

@@ -6,6 +6,7 @@ import { getChildName } from '/static/lib/icons.js';
 import { CategoryIcon } from '/static/components/CategoryIcon.js';
 import { Spinner } from '/static/components/Spinner.js';
 import { SearchableSelect } from '/static/components/SearchableSelect.js';
+import { AmountInput } from '/static/components/AmountInput.js';
 
 export function TransactionView({ data, categories, onUpdated }) {
     const [query, setQuery] = useState('');
@@ -239,8 +240,11 @@ export function TransactionView({ data, categories, onUpdated }) {
                             </div>
                             <div class="form-field${errors.amount ? ' has-error' : ''}">
                                 <label>Amount</label>
-                                <input type="number" placeholder="Amount" value=${form.amount}
-                                    onInput=${e => { setForm({ ...form, amount: e.target.value }); clearError('amount'); }} />
+                                <${AmountInput}
+                                    value=${form.amount}
+                                    onInput=${digits => { setForm({ ...form, amount: digits }); clearError('amount'); }}
+                                    hasError=${!!errors.amount}
+                                />
                                 ${errors.amount && html`<span class="field-error">Required</span>`}
                             </div>
                             <div class="form-field${errors.category ? ' has-error' : ''}">
