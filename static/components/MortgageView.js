@@ -63,7 +63,7 @@ function simulateLoan(principal, rates, tenor, startYear, startMonth, savingsBal
     return { results, totalInterest, totalPaid, payoffMonth };
 }
 
-export function MortgageView({ data }) {
+export function MortgageView({ data, onBack }) {
     const [savings, setSavings] = useState(252000000);
 
     if (!data) {
@@ -127,6 +127,11 @@ export function MortgageView({ data }) {
 
     return html`
         <section class="view">
+            ${onBack && html`
+            <button class="mortgage-back" onClick=${onBack}>
+                ← Back to Summary
+            </button>
+            `}
             <div class="card balance-card">
                 <div class="label">House Account Balance</div>
                 <div class="value">${fmtRp(data.house_balance)}</div>

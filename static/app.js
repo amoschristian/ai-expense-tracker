@@ -54,10 +54,10 @@ function App() {
     }, [year, month, account, ready]);
 
     useEffect(() => {
-        if (view === 'mortgage' && !mortgageData && ready) {
+        if ((view === 'mortgage' || account === 'house') && !mortgageData && ready) {
             fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); });
         }
-    }, [view, mortgageData, ready]);
+    }, [view, account, mortgageData, ready]);
 
     const prevMonth = useCallback(() => {
         setMonth(m => {
@@ -256,12 +256,12 @@ function App() {
             showAccount=${view !== 'mortgage'}
         />
         <main id="content">
-            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} />`}
+            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} mortgage=${mortgageData} onOpenMortgage=${() => setView('mortgage')} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
-            ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} />`}
+            ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} onBack=${() => setView('summary')} />`}
             ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} account=${account} />`}
         </main>
-        <${TabBar} active=${view} onChange=${setView} onAdd=${openAdd} />
+        <${TabBar} active=${view} onChange=${setView} onAdd=${openAdd} onMore=${() => showToast('More coming soon', 'info')} />
         ${showAddModal && html`
             <div class="modal-overlay" onClick=${closeAdd}>
                 <div class="modal" onClick=${e => e.stopPropagation()}>
