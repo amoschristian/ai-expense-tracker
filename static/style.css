@@ -1862,3 +1862,191 @@ textarea:focus-visible,
 ::selection {
     background: rgba(217, 161, 95, 0.3);
 }
+
+/* ===== Balance Simulator (More tab) ===== */
+.sim-head {
+    text-align: center;
+    margin-bottom: 16px;
+}
+.sim-head-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+}
+.sim-head-month {
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.sim-balance-card {
+    text-align: center;
+    padding: 24px 20px 20px;
+}
+.sim-balance-big {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+}
+.sim-balance-sub {
+    font-size: 0.75rem;
+    color: var(--dim);
+    margin-top: 8px;
+}
+.sim-debit-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(42, 46, 58, 0.4);
+}
+.sim-debit-row:last-child { border-bottom: none; }
+.sim-debit-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.sim-debit-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sim-debit-day {
+    font-size: 0.72rem;
+    color: var(--dim);
+    font-weight: 500;
+    margin-left: 6px;
+}
+.sim-debit-amount {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--red);
+    white-space: nowrap;
+}
+.sim-empty {
+    color: var(--dim);
+    font-size: 0.88rem;
+    text-align: center;
+    padding: 12px 0;
+}
+.sim-proj-card {
+    text-align: center;
+    padding: 24px 20px 20px;
+}
+.sim-proj-big {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: -0.02em;
+    margin-top: 4px;
+}
+.sim-proj-big.sim-risk { color: var(--red); }
+.sim-proj-status {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 8px;
+}
+.sim-safe-text { color: var(--green); }
+.sim-risk-text { color: var(--red); }
+.sim-quick-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+.sim-chip {
+    background: var(--surface-hover);
+    border: 1px solid rgba(122, 162, 247, 0.25);
+    color: var(--blue);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.sim-chip:active { background: rgba(122, 162, 247, 0.2); transform: scale(0.96); }
+.sim-whatif-result {
+    margin-top: 14px;
+    background: var(--surface-hover);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+}
+.sim-whatif-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    padding: 5px 0;
+    color: var(--dim);
+}
+.sim-whatif-row span:last-child { font-weight: 700; color: var(--text); }
+.sim-chart { width: 100%; height: auto; display: block; }
+.sim-chart-val { font-weight: 600; }
+.sim-chart-legend {
+    font-size: 0.72rem;
+    color: var(--dim);
+    text-align: center;
+    margin-top: 8px;
+}
+
+/* What-if simulator input — match standard form fields */
+.sim-form input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.sim-form input::placeholder { color: var(--dim); }
+.sim-form input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-faint);
+}
+
+/* Status pills — color-coded safe / risk */
+.sim-proj-status {
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-top: 10px;
+    display: flex;
+    justify-content: center;
+}
+.sim-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+.sim-status-pill.sim-sm { padding: 4px 10px; font-size: 0.72rem; }
+.sim-status-pill.sim-safe {
+    color: var(--green);
+    background: rgba(158, 206, 106, 0.14);
+    border: 1px solid rgba(158, 206, 106, 0.35);
+}
+.sim-status-pill.sim-risk {
+    color: var(--red);
+    background: rgba(247, 118, 142, 0.14);
+    border: 1px solid rgba(247, 118, 142, 0.35);
+}
+
+/* Keep pill text color inside what-if rows (row rule sets --text) */
+.sim-whatif-row .sim-status-pill.sim-safe { color: var(--green); }
+.sim-whatif-row .sim-status-pill.sim-risk { color: var(--red); }

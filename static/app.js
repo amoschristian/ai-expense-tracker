@@ -7,6 +7,7 @@ import { SummaryView } from '/static/components/SummaryView.js';
 import { TransactionView } from '/static/components/TransactionView.js';
 import { MortgageView } from '/static/components/MortgageView.js';
 import { RecurringView } from '/static/components/RecurringView.js';
+import { MoreView } from '/static/components/MoreView.js';
 import { TabBar } from '/static/components/TabBar.js';
 import { ToastBar } from '/static/components/ToastBar.js';
 import { SearchableSelect } from '/static/components/SearchableSelect.js';
@@ -25,6 +26,7 @@ function App() {
     const [balance, setBalance] = useState(null);
     const [categories, setCategories] = useState([]);
     const [mortgageData, setMortgageData] = useState(null);
+    const [simRefresh, setSimRefresh] = useState(0);
     const [ready, setReady] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addForm, setAddForm] = useState({ date: '', account: 'bca', category: '', amount: '', description: '' });
@@ -145,7 +147,7 @@ function App() {
             view === 'mortgage' && mortgageData
                 ? fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); })
                 : Promise.resolve(),
-        ]);
+        ]).then(() => { setSimRefresh(k => k + 1); });
     }
 
     // Always call the latest refreshAll (avoids stale account/month closure)
@@ -260,8 +262,9 @@ function App() {
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} onBack=${() => setView('summary')} />`}
             ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} account=${account} />`}
+            ${view === 'forecast' && html`<${MoreView} account=${account} year=${year} month=${month} refreshKey=${simRefresh} />`}
         </main>
-        <${TabBar} active=${view} onChange=${setView} onAdd=${openAdd} onMore=${() => showToast('More coming soon', 'info')} />
+        <${TabBar} active=${view} onChange=${setView} onAdd=${openAdd} onMore=${() => setView('forecast')} />
         ${showAddModal && html`
             <div class="modal-overlay" onClick=${closeAdd}>
                 <div class="modal" onClick=${e => e.stopPropagation()}>

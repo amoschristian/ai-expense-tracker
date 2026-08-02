@@ -20,6 +20,7 @@ from db import (
     get_month_summary,
     get_recurring_expense,
     get_recurring_expenses,
+    get_simulation,
     get_trend,
     get_transactions,
     init_db,
@@ -107,6 +108,17 @@ def api_balance():
     if not bal:
         return jsonify({"error": "no data"}), 404
     return jsonify(bal)
+
+
+@app.route("/api/simulation")
+def api_simulation():
+    account = request.args.get("account", "bca")
+    year = int(request.args.get("year", date.today().year))
+    month = int(request.args.get("month", date.today().month))
+    sim = get_simulation(account, year, month)
+    if not sim:
+        return jsonify({"error": "no data"}), 404
+    return jsonify(sim)
 
 
 @app.route("/api/balance", methods=["POST"])

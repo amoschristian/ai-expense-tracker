@@ -372,3 +372,77 @@ def unpay_recurring(item_id: int, year: int, month: int) -> bool:
         )
         conn.commit()
         return cur.rowcount > 0
+
+
+def get_simulation(account: str, year: int, month: int) -> dict | None:
+    """Balance simulation for a month: current balance, upcoming recurring
+    debits (unpaid, day >= today, within start/end date), projected end balance."""
+    import calendar
+    from datetime import date
+
+    with get_db() as conn:
+        acc = conn.execute("SELECT account FROM accounts WHERE account=?", (account,)).fetchone()
+        if not acc:
+            return None
+
+        bal = _compute_balance(conn, account, year, month)
+        today = date.today()
+        days_in_month = calendar.monthrange(year, month)[1]
+
+        rows = conn.execute(
+            """SELECT r.id, r.name, r.amount, r.day_of_month, r.start_date, r.end_date,
+                      c.name as category, c.color
+               FROM recurring_expenses r
+               LEFT JOIN categories c ON r.category_id = c.id
+               WHERE r.account = ?
+               ORDER BY r.day_of_month""",
+            (account,),
+        ).fetchall()
+
+        upcoming = []
+        for r in rows:
+            dom = r["day_of_month"]
+            if not dom:
+                continue
+            if dom < today.day:
+                continue  # already past this month (paid manually or missed)
+            # paid flag: a transaction exists this month linked to this recurring
+            paid = conn.execute(
+                "SELECT 1 FROM transactions WHERE recurring_id=? AND year=? AND month=? LIMIT 1",
+                (r["id"], year, month),
+            ).fetchone()
+            if paid:
+                continue
+            # date-window: debit must fall between start_date and end_date
+            try:
+                debit_date = date(year, month, min(dom, days_in_month))
+            except ValueError:
+                continue
+            if r["start_date"] and debit_date < date.fromisoformat(r["start_date"]):
+                continue
+            if r["end_date"] and debit_date > date.fromisoformat(r["end_date"]):
+                continue
+            upcoming.append({
+                "id": r["id"],
+                "name": r["name"],
+                "amount": r["amount"],
+                "day": dom,
+                "date": debit_date.isoformat(),
+                "category": r["category"],
+                "color": r["color"],
+            })
+
+        total_upcoming = sum(u["amount"] for u in upcoming)
+        projected_end = bal - total_upcoming
+
+        return {
+            "account": account,
+            "year": year,
+            "month": month,
+            "today": today.day,
+            "days_in_month": days_in_month,
+            "balance": bal,
+            "upcoming": upcoming,
+            "total_upcoming": total_upcoming,
+            "projected_end": projected_end,
+        }
