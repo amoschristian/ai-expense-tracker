@@ -5,10 +5,10 @@ After=network.target
 [Service]
 Type=simple
 User=blackhawk
-WorkingDirectory=/home/blackhawk/dev/expenses-web
-Environment=FLASK_PORT=6001
+WorkingDirectory=/home/blackhawk/expenses-web
+Environment=FLASK_PORT=6002
 Environment=FLASK_DEBUG=false
-ExecStart=/home/blackhawk/dev/expenses-web/venv/bin/python server.py
+ExecStart=/home/blackhawk/expenses-web/venv/bin/python server.py
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1

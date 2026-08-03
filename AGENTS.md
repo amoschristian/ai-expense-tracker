@@ -5,7 +5,7 @@ Mobile-friendly web dashboard — Flask API + Preact frontend + SQLite database.
 ## Quick start
 
 ```bash
-cd ~/dev/expenses-web
+cd ~/expenses-web
 source venv/bin/activate
 python3 server.py       # http://localhost:5000 (debug=True)
 ```
@@ -31,7 +31,7 @@ Dev uses defaults. Prod is configured via `expenses-web.service`.
 
 ## Database
 
-**Location:** `~/dev/expenses-web/data/expenses.db`
+**Location:** `~/expenses-web/data/expenses.db`
 
 ### Schema
 
@@ -221,7 +221,7 @@ ORDER BY date;
 ## Systemd deployment
 
 ```bash
-sudo cp ~/dev/expenses-web/expenses-web.service /etc/systemd/system/
+sudo cp ~/expenses-web/expenses-web.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now expenses-web
 ```
