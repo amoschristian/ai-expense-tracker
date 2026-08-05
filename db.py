@@ -67,7 +67,8 @@ def init_db() -> None:
                 frequency TEXT NOT NULL DEFAULT 'monthly',
                 day_of_month INTEGER,
                 start_date TEXT NOT NULL,
-                end_date TEXT
+                end_date TEXT,
+                is_variable INTEGER DEFAULT 0
             );
         """)
         # Migration: add recurring_id to transactions if not present
@@ -75,6 +76,11 @@ def init_db() -> None:
         col_names = [c["name"] for c in cols]
         if "recurring_id" not in col_names:
             conn.execute("ALTER TABLE transactions ADD COLUMN recurring_id INTEGER REFERENCES recurring_expenses(id)")
+        # Migration: add is_variable to recurring_expenses if not present
+        rcols = conn.execute("PRAGMA table_info(recurring_expenses)").fetchall()
+        rcol_names = [c["name"] for c in rcols]
+        if "is_variable" not in rcol_names:
+            conn.execute("ALTER TABLE recurring_expenses ADD COLUMN is_variable INTEGER DEFAULT 0")
         seed_categories(conn)
 
 
@@ -263,7 +269,7 @@ def get_recurring_expenses() -> list[dict]:
     with get_db() as conn:
         rows = conn.execute(
             """SELECT r.id, r.name, r.amount, r.account, r.frequency,
-                      r.day_of_month, r.start_date, r.end_date,
+                      r.day_of_month, r.start_date, r.end_date, r.is_variable,
                       c.name as category, c.color
                FROM recurring_expenses r
                LEFT JOIN categories c ON r.category_id = c.id
@@ -292,11 +298,12 @@ def add_recurring_expense(data: dict) -> int:
             return -1
         cur = conn.execute(
             """INSERT INTO recurring_expenses
-               (name, amount, category_id, account, frequency, day_of_month, start_date, end_date)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (name, amount, category_id, account, frequency, day_of_month, start_date, end_date, is_variable)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (data["name"], int(data["amount"]), cat_id, data["account"],
              data.get("frequency", "monthly"), data.get("day_of_month"),
-             data["start_date"], data.get("end_date")),
+             data["start_date"], data.get("end_date"),
+             1 if data.get("is_variable") else 0),
         )
         conn.commit()
         return cur.lastrowid
@@ -306,7 +313,7 @@ def get_recurring_expense(item_id: int) -> dict | None:
     with get_db() as conn:
         row = conn.execute(
             """SELECT r.id, r.name, r.amount, r.account, r.frequency,
-                      r.day_of_month, r.start_date, r.end_date,
+                      r.day_of_month, r.start_date, r.end_date, r.is_variable,
                       c.name as category, c.color
                FROM recurring_expenses r
                LEFT JOIN categories c ON r.category_id = c.id
@@ -324,11 +331,12 @@ def update_recurring_expense(item_id: int, data: dict) -> bool:
         cur = conn.execute(
             """UPDATE recurring_expenses
                SET name=?, amount=?, category_id=?, account=?, frequency=?,
-                   day_of_month=?, start_date=?, end_date=?
+                   day_of_month=?, start_date=?, end_date=?, is_variable=?
                WHERE id=?""",
             (data["name"], int(data["amount"]), cat_id, data["account"],
              data.get("frequency", "monthly"), data.get("day_of_month"),
-             data["start_date"], data.get("end_date"), item_id),
+             data["start_date"], data.get("end_date"),
+             1 if data.get("is_variable") else 0, item_id),
         )
         conn.commit()
         return cur.rowcount > 0
@@ -374,9 +382,45 @@ def unpay_recurring(item_id: int, year: int, month: int) -> bool:
         return cur.rowcount > 0
 
 
+
+def _variable_estimate(conn, account: str, category: str, lookback_months: int = 3) -> dict | None:
+    """Learn from history: avg/min/max monthly totals + typical day for a
+    variable recurring item (category + account), excluding the current month."""
+    from datetime import date
+    from statistics import median
+    today = date.today()
+    rows = conn.execute(
+        """SELECT (t.year * 100 + t.month) as ym, SUM(t.amount) as total,
+                  MIN(CAST(substr(t.date, 9, 2) AS INTEGER)) as min_day,
+                  MAX(CAST(substr(t.date, 9, 2) AS INTEGER)) as max_day,
+                  CAST(round(AVG(CAST(substr(t.date, 9, 2) AS INTEGER))) AS INTEGER) as avg_day
+           FROM transactions t JOIN categories c ON t.category_id=c.id
+           WHERE t.account=? AND c.name=? AND (t.year * 100 + t.month) < ?
+           GROUP BY ym ORDER BY ym DESC LIMIT ?""",
+        (account, category, today.year * 100 + today.month, lookback_months),
+    ).fetchall()
+    if not rows:
+        return None
+    totals = [r['total'] for r in rows]
+    days = [d for r in rows for d in (r['min_day'], r['max_day']) if d]
+    return {
+        'avg': round(sum(totals) / len(totals)),
+        'min': min(totals),
+        'max': max(totals),
+        'typical_day': round(median(days)) if days else None,
+    }
+
+
+def _is_quarter_due(start_ym: int, year: int, month: int) -> bool:
+    """Quarterly recurring: due when (current - start) is a multiple of 3 months."""
+    current = year * 100 + month
+    diff = (year * 12 + month) - ((start_ym // 100) * 12 + (start_ym % 100))
+    return diff >= 0 and diff % 3 == 0
+
+
 def get_simulation(account: str, year: int, month: int) -> dict | None:
     """Balance simulation for a month: current balance, upcoming recurring
-    debits (unpaid, day >= today, within start/end date), projected end balance."""
+    debits (fixed or variable, unpaid, within start/end date), projected end."""
     import calendar
     from datetime import date
 
@@ -391,6 +435,7 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
 
         rows = conn.execute(
             """SELECT r.id, r.name, r.amount, r.day_of_month, r.start_date, r.end_date,
+                      r.frequency, r.is_variable,
                       c.name as category, c.color
                FROM recurring_expenses r
                LEFT JOIN categories c ON r.category_id = c.id
@@ -400,19 +445,65 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
         ).fetchall()
 
         upcoming = []
+        next_due = []
         for r in rows:
+            start_ym = int(r["start_date"][:4]) * 100 + int(r["start_date"][5:7]) if r["start_date"] else 0
+
+            # frequency gating: only include when this month is a due month
+            if r["frequency"] == "quarterly":
+                if not _is_quarter_due(start_ym, year, month):
+                    # not due this month: surface it in next_due so the user sees it coming
+                    if r["is_variable"] and r["category"]:
+                        est = _variable_estimate(conn, account, r["category"])
+                        if est:
+                            cur = year * 12 + month
+                            diff = cur - (start_ym // 100 * 12 + start_ym % 100)
+                            months_to_next = 3 - (diff % 3)
+                            nxt = cur + months_to_next
+                            next_due.append({
+                                "id": r["id"],
+                                "name": r["name"],
+                                "amount": est["avg"],
+                                "est_min": est["min"],
+                                "est_max": est["max"],
+                                "category": r["category"],
+                                "color": r["color"],
+                                "due_year": nxt // 12,
+                                "due_month": nxt % 12,
+                            })
+                    continue
+            elif r["frequency"] != "monthly":
+                continue  # weekly/yearly not simulated yet
+
+            # paid check: variable -> by category; fixed -> by recurring_id link
+            if r["is_variable"]:
+                paid = conn.execute(
+                    "SELECT 1 FROM transactions t JOIN categories c ON t.category_id=c.id"
+                    " WHERE t.account=? AND c.name=? AND t.year=? AND t.month=? LIMIT 1",
+                    (account, r["category"], year, month),
+                ).fetchone()
+            else:
+                paid = conn.execute(
+                    "SELECT 1 FROM transactions WHERE recurring_id=? AND year=? AND month=? LIMIT 1",
+                    (r["id"], year, month),
+                ).fetchone()
+            if paid:
+                continue
+
+            # variable: learn amount + typical day from history
+            amount = r["amount"]
             dom = r["day_of_month"]
+            est = None
+            if r["is_variable"] and r["category"]:
+                est = _variable_estimate(conn, account, r["category"])
+                if est:
+                    amount = est["avg"]
+                    dom = est["typical_day"] or dom
             if not dom:
                 continue
             if dom < today.day:
-                continue  # already past this month (paid manually or missed)
-            # paid flag: a transaction exists this month linked to this recurring
-            paid = conn.execute(
-                "SELECT 1 FROM transactions WHERE recurring_id=? AND year=? AND month=? LIMIT 1",
-                (r["id"], year, month),
-            ).fetchone()
-            if paid:
-                continue
+                continue  # already past this month
+
             # date-window: debit must fall between start_date and end_date
             try:
                 debit_date = date(year, month, min(dom, days_in_month))
@@ -422,15 +513,21 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
                 continue
             if r["end_date"] and debit_date > date.fromisoformat(r["end_date"]):
                 continue
-            upcoming.append({
+
+            item = {
                 "id": r["id"],
                 "name": r["name"],
-                "amount": r["amount"],
+                "amount": amount,
                 "day": dom,
                 "date": debit_date.isoformat(),
                 "category": r["category"],
                 "color": r["color"],
-            })
+                "is_variable": bool(r["is_variable"]),
+            }
+            if est:
+                item["est_min"] = est["min"]
+                item["est_max"] = est["max"]
+            upcoming.append(item)
 
         total_upcoming = sum(u["amount"] for u in upcoming)
         projected_end = bal - total_upcoming
@@ -443,6 +540,8 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
             "days_in_month": days_in_month,
             "balance": bal,
             "upcoming": upcoming,
+            "next_due": next_due,
             "total_upcoming": total_upcoming,
             "projected_end": projected_end,
         }
+

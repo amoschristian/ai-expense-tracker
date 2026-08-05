@@ -2050,3 +2050,32 @@ textarea:focus-visible,
 /* Keep pill text color inside what-if rows (row rule sets --text) */
 .sim-whatif-row .sim-status-pill.sim-safe { color: var(--green); }
 .sim-whatif-row .sim-status-pill.sim-risk { color: var(--red); }
+
+/* Variable recurring / estimate styles */
+.sim-est { color: var(--blue) !important; }
+.sim-est-range {
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin: -2px 0 10px 20px;
+}
+.recurring-var-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+}
+.recurring-var-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+.recurring-var-hint {
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin-top: 2px;
+    padding-left: 26px;
+}
+

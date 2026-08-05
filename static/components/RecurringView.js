@@ -12,7 +12,7 @@ export function RecurringView({ categories, accounts, account }) {
     const [items, setItems] = useState(null);
     const [editing, setEditing] = useState(null);
     const today = localDateStr();
-    const [form, setForm] = useState({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: today, end_date: '' });
+    const [form, setForm] = useState({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: today, end_date: '', is_variable: false });
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
@@ -34,6 +34,7 @@ export function RecurringView({ categories, accounts, account }) {
         if (item.frequency === 'monthly') return 'monthly';
         if (item.frequency === 'yearly') return 'yearly';
         if (item.frequency === 'weekly') return 'weekly';
+        if (item.frequency === 'quarterly') return 'quarterly';
         return item.frequency;
     }
 
@@ -44,7 +45,7 @@ export function RecurringView({ categories, accounts, account }) {
 
     function resetForm() {
         const t = localDateStr();
-        setForm({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: t, end_date: '' });
+        setForm({ name: '', amount: '', category: '', account: account, frequency: 'monthly', day_of_month: '', start_date: t, end_date: '', is_variable: false });
         setEditing(null);
         setErrors({});
     }
@@ -56,6 +57,7 @@ export function RecurringView({ categories, accounts, account }) {
             category: item.category,
             account: item.account,
             frequency: item.frequency,
+            is_variable: !!item.is_variable,
             day_of_month: item.day_of_month || '',
             start_date: item.start_date || localDateStr(),
             end_date: '',
@@ -159,6 +161,8 @@ export function RecurringView({ categories, accounts, account }) {
         if (item.frequency === 'monthly') return sum + item.amount;
         if (item.frequency === 'yearly') return sum + Math.round(item.amount / 12);
         if (item.frequency === 'weekly') return sum + Math.round(item.amount * 4.33);
+        if (item.frequency === 'quarterly') return sum + Math.round(item.amount / 3);
+        if (item.frequency === 'quarterly') return sum + Math.round(item.amount / 3);
         return sum;
     }, 0);
 
@@ -231,13 +235,22 @@ export function RecurringView({ categories, accounts, account }) {
                     <div class="form-row">
                         <select value=${form.frequency} onChange=${e => setForm({ ...form, frequency: e.target.value })}>
                             <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
                             <option value="yearly">Yearly</option>
                             <option value="weekly">Weekly</option>
                         </select>
-                        ${form.frequency === 'monthly' && html`
+                        ${(form.frequency === 'monthly' || form.frequency === 'quarterly') && html`
                             <input type="number" placeholder="Day" min="1" max="28" value=${form.day_of_month}
                                 onInput=${e => setForm({ ...form, day_of_month: e.target.value })} />
                         `}
+                    </div>
+                    <div class="form-field">
+                        <label class="recurring-var-label">
+                            <input type="checkbox" checked=${!!form.is_variable}
+                                onChange=${e => setForm({ ...form, is_variable: e.target.checked })} />
+                            Variable amount (auto-estimated from history)
+                        </label>
+                        <span class="recurring-var-hint">For bills that change every month, e.g. utilities</span>
                     </div>
                     <div class="form-actions">
                         <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : (editing ? 'Update' : 'Add')}</button>
@@ -261,7 +274,7 @@ export function RecurringView({ categories, accounts, account }) {
                                 </div>
                             </div>
                             <div class="recurring-right">
-                                <div class="recurring-amt">${fmtRp(item.amount)}</div>
+                                <div class="recurring-amt${item.is_variable ? " sim-est" : ""}">${item.is_variable ? "~" : ""}${fmtRp(item.amount)}</div>
                                 <div class="recurring-freq">
                                     <${Calendar} size=${11} />
                                     ${formatFrequency(item)}

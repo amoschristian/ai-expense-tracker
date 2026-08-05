@@ -108,7 +108,7 @@ export function MoreView({ account, year, month, refreshKey }) {
             <div class="card sim-balance-card">
                 <div class="card-title">Current balance</div>
                 <div class="sim-balance-big">${fmtRp(sim.balance)}</div>
-                <div class="sim-balance-sub">${sim.upcoming.length} known debits remaining this month</div>
+                <div class="sim-balance-sub">${sim.upcoming.length} debit${sim.upcoming.length === 1 ? "" : "s"} remaining this month${sim.upcoming.some(u => u.is_variable) ? " (incl. estimates)" : ""}</div>
             </div>
 
             <div class="card">
@@ -125,13 +125,36 @@ export function MoreView({ account, year, month, refreshKey }) {
                             <span class="sim-debit-dot" style=${{ background: u.color }}></span>
                             <span class="sim-debit-name">
                                 ${u.name}
-                                <span class="sim-debit-day">day ${u.day}</span>
+                                <span class="sim-debit-day">day ${u.day}${u.is_variable ? " · estimated" : ""}</span>
                             </span>
-                            <span class="sim-debit-amount">−${fmtRp(u.amount)}</span>
+                            <span class="sim-debit-amount ${u.is_variable ? "sim-est" : ""}">−${u.is_variable ? "~" : ""}${fmtRp(u.amount)}</span>
                         </div>
+                        ${u.is_variable && u.est_min && html`
+                            <div class="sim-est-range">range ${fmtRp(u.est_min)} – ${fmtRp(u.est_max)}</div>
+                        `}
                     `;
                 })}
             </div>
+
+            ${sim.next_due && sim.next_due.length > 0 && html`
+            <div class="card">
+                <div class="card-title">Coming up next</div>
+                ${sim.next_due.map(n => {
+                    const dueLabel = `${MONTHS[n.due_month - 1]} ${n.due_year}`;
+                    return html`
+                        <div class="sim-debit-row">
+                            <span class="sim-debit-dot" style=${{ background: n.color }}></span>
+                            <span class="sim-debit-name">
+                                ${n.name}
+                                <span class="sim-debit-day">due ${dueLabel}</span>
+                            </span>
+                            <span class="sim-debit-amount sim-est">~${fmtRp(n.amount)}</span>
+                        </div>
+                        <div class="sim-est-range">range ${fmtRp(n.est_min)} – ${fmtRp(n.est_max)}</div>
+                    `;
+                })}
+            </div>
+            `}
 
             <div class="card sim-proj-card">
                 <div class="card-title">Projected end of month</div>
