@@ -560,12 +560,12 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
 # ---------- Goals (savings goal tracking) ----------
 
 def _goal_progress(conn: sqlite3.Connection, goal) -> dict:
-    """Compute progress for a goal: growth of account balance since start_balance."""
+    """Compute progress for a goal: current account balance vs target."""
     from datetime import date
     today = date.today()
     current = _compute_balance(conn, goal["account"], today.year, today.month)
     target = goal["target_amount"]
-    progress = max(0, min(current - goal["start_balance"], target))
+    progress = max(0, min(current, target))
     pct = round(progress / target * 100) if target else 0
 
     item = dict(goal)

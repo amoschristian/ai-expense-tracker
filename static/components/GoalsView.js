@@ -166,7 +166,7 @@ export function GoalsView({ goals, accounts, onBack, onUpdated }) {
                         <input type="text" placeholder="Note (optional)" value=${form.note}
                             onInput=${e => setForm({ ...form, note: e.target.value })} />
                     </div>
-                    <div class="form-hint">Progress = growth of the ${form.account.toUpperCase()} balance since this goal was created. Add money to the account and the bar fills itself.</div>
+                    <div class="form-hint">Progress = current ${form.account.toUpperCase()} balance vs target. Add money to the account and the bar fills itself.</div>
                     <div class="form-actions">
                         <button type="submit" class="btn-primary" disabled=${saving}>${saving ? 'Saving...' : (editing ? 'Update' : 'Add')}</button>
                         ${editing && html`<button type="button" class="btn-secondary" onClick=${resetForm}>Cancel</button>`}

@@ -19,7 +19,9 @@ export function SummaryView({ data, trend, balance, categories, account, mortgag
     return html`
         <section class="view">
             <${BalanceCard} balance=${balance} />
+            ${account === 'amos' && html`
             <${GoalsWidget} goals=${goals} onOpenGoals=${onOpenGoals} />
+            `}
             ${account === 'house' && mortgage && html`
             <div class="card house-widget" onClick=${onOpenMortgage}>
                 <div class="card-title">House · Mortgage</div>
