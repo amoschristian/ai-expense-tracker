@@ -121,6 +121,9 @@ export function GoalsView({ goals, accounts, onBack, onUpdated }) {
                 <div class="progress-bar-wrap">
                     <div class="progress-bar paid" style=${{ width: goals.total_pct + '%' }}></div>
                 </div>
+                ${goals.goal_count > 1 && goals.goal_count > goals.account_count && html`
+                    <div class="goals-shared-hint">Same balance is shared across ${goals.goal_count} goals — the total counts it once.</div>
+                `}
             </div>
 
             <div class="card">

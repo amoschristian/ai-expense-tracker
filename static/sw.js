@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expenses-v30';
+const CACHE_NAME = 'expenses-v31';
 const SHELL_ASSETS = [
   '/',
   '/static/style.css',

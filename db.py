@@ -603,12 +603,20 @@ def get_goals() -> list[dict]:
         # incomplete first, closest deadline first, then newest
         goals.sort(key=lambda g: (g["achieved"], g["target_date"] or "9999-99-99", -g["id"]))
         total_target = sum(g["target_amount"] for g in goals)
-        total_progress = sum(g["progress"] for g in goals)
+        # Same balance backs multiple goals on one account — count each rupiah once:
+        # per account, progress is capped by that account's balance (and its target sum).
+        per_account = {}
+        for g in goals:
+            a = per_account.setdefault(g["account"], {"balance": g["current_balance"], "target": 0})
+            a["target"] += g["target_amount"]
+        total_progress = sum(min(a["balance"], a["target"]) for a in per_account.values())
         return {
             "goals": goals,
             "total_target": total_target,
             "total_progress": total_progress,
             "total_pct": round(total_progress / total_target * 100) if total_target else 0,
+            "goal_count": len(goals),
+            "account_count": len(per_account),
         }
 
 

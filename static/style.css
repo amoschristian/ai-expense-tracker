@@ -2144,3 +2144,11 @@ textarea:focus-visible,
     margin-bottom: 12px;
     line-height: 1.45;
 }
+
+
+.goals-shared-hint {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--dim);
+    text-align: center;
+}
