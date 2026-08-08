@@ -70,6 +70,17 @@ def init_db() -> None:
                 end_date TEXT,
                 is_variable INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                target_amount INTEGER NOT NULL,
+                account TEXT NOT NULL DEFAULT 'amos',
+                start_balance INTEGER NOT NULL DEFAULT 0,
+                target_date TEXT,
+                note TEXT,
+                created_at TEXT DEFAULT (date('now'))
+            );
         """)
         # Migration: add recurring_id to transactions if not present
         cols = conn.execute("PRAGMA table_info(transactions)").fetchall()
@@ -545,3 +556,103 @@ def get_simulation(account: str, year: int, month: int) -> dict | None:
             "projected_end": projected_end,
         }
 
+
+# ---------- Goals (savings goal tracking) ----------
+
+def _goal_progress(conn: sqlite3.Connection, goal) -> dict:
+    """Compute progress for a goal: growth of account balance since start_balance."""
+    from datetime import date
+    today = date.today()
+    current = _compute_balance(conn, goal["account"], today.year, today.month)
+    target = goal["target_amount"]
+    progress = max(0, min(current - goal["start_balance"], target))
+    pct = round(progress / target * 100) if target else 0
+
+    item = dict(goal)
+    item["current_balance"] = current
+    item["progress"] = progress
+    item["pct"] = pct
+    item["remaining"] = max(target - progress, 0)
+    item["achieved"] = progress >= target
+
+    # months left until target_date (inclusive of current month)
+    months_left = None
+    if goal["target_date"]:
+        try:
+            ty, tm = int(goal["target_date"][:4]), int(goal["target_date"][5:7])
+            months_left = max(0, (ty - today.year) * 12 + (tm - today.month))
+        except (ValueError, IndexError):
+            months_left = None
+    item["months_left"] = months_left
+    if months_left is not None and months_left > 0 and item["remaining"] > 0:
+        import math
+        item["monthly_needed"] = math.ceil(item["remaining"] / months_left)
+    else:
+        item["monthly_needed"] = None
+    return item
+
+
+def get_goals() -> list[dict]:
+    from datetime import date
+    today = date.today()
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, name, target_amount, account, start_balance, target_date, note, created_at FROM goals"
+        ).fetchall()
+        goals = [_goal_progress(conn, r) for r in rows]
+        # incomplete first, closest deadline first, then newest
+        goals.sort(key=lambda g: (g["achieved"], g["target_date"] or "9999-99-99", -g["id"]))
+        total_target = sum(g["target_amount"] for g in goals)
+        total_progress = sum(g["progress"] for g in goals)
+        return {
+            "goals": goals,
+            "total_target": total_target,
+            "total_progress": total_progress,
+            "total_pct": round(total_progress / total_target * 100) if total_target else 0,
+        }
+
+
+def add_goal(data: dict) -> int:
+    """Create a goal, snapshotting the account's current balance as start_balance."""
+    from datetime import date
+    today = date.today()
+    with get_db() as conn:
+        start_balance = _compute_balance(conn, data["account"], today.year, today.month)
+        cur = conn.execute(
+            """INSERT INTO goals (name, target_amount, account, start_balance, target_date, note)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (data["name"], int(data["target_amount"]), data["account"], start_balance,
+             data.get("target_date") or None, data.get("note") or None),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def update_goal(item_id: int, data: dict) -> bool:
+    """Update a goal. If the account changed, re-snapshot start_balance."""
+    from datetime import date
+    today = date.today()
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM goals WHERE id=?", (item_id,)).fetchone()
+        if not row:
+            return False
+        account = data.get("account", row["account"])
+        start_balance = row["start_balance"]
+        if account != row["account"]:
+            start_balance = _compute_balance(conn, account, today.year, today.month)
+        cur = conn.execute(
+            """UPDATE goals
+               SET name=?, target_amount=?, account=?, start_balance=?, target_date=?, note=?
+               WHERE id=?""",
+            (data["name"], int(data["target_amount"]), account, start_balance,
+             data.get("target_date") or None, data.get("note") or None, item_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def delete_goal(item_id: int) -> bool:
+    with get_db() as conn:
+        cur = conn.execute("DELETE FROM goals WHERE id=?", (item_id,))
+        conn.commit()
+        return cur.rowcount > 0

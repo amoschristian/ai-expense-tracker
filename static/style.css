@@ -2079,3 +2079,68 @@ textarea:focus-visible,
     padding-left: 26px;
 }
 
+
+
+/* Goals */
+.goals-widget {
+    cursor: pointer;
+    border: 1px solid rgba(158, 206, 106, 0.18);
+}
+.goals-widget:hover { border-color: rgba(158, 206, 106, 0.4); }
+.goals-widget:active { transform: scale(0.99); }
+.goals-widget-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+}
+.goals-widget-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: var(--dim);
+}
+.goals-widget-link { color: var(--accent); font-weight: 600; }
+.goals-widget-empty { color: var(--dim); font-size: 0.9rem; }
+
+.goals-list { margin-top: 4px; }
+.goal-card { padding: 16px 20px; }
+.goal-card.achieved { opacity: 0.75; border-color: rgba(158, 206, 106, 0.35); }
+.goal-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.goal-card-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 700;
+}
+.goal-card-note {
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin-bottom: 10px;
+}
+.goal-achieved-tag {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #9ece6a;
+    background: rgba(158, 206, 106, 0.12);
+    border: 1px solid rgba(158, 206, 106, 0.3);
+    border-radius: 6px;
+    padding: 3px 10px;
+}
+
+.form-hint {
+    font-size: 0.72rem;
+    color: var(--dim);
+    margin-top: -4px;
+    margin-bottom: 12px;
+    line-height: 1.45;
+}

@@ -8,6 +8,7 @@ import { TransactionView } from '/static/components/TransactionView.js';
 import { MortgageView } from '/static/components/MortgageView.js';
 import { RecurringView } from '/static/components/RecurringView.js';
 import { MoreView } from '/static/components/MoreView.js';
+import { GoalsView } from '/static/components/GoalsView.js';
 import { TabBar } from '/static/components/TabBar.js';
 import { ToastBar } from '/static/components/ToastBar.js';
 import { SearchableSelect } from '/static/components/SearchableSelect.js';
@@ -27,6 +28,7 @@ function App() {
     const [categories, setCategories] = useState([]);
     const [mortgageData, setMortgageData] = useState(null);
     const [simRefresh, setSimRefresh] = useState(0);
+    const [goalsData, setGoalsData] = useState(null);
     const [ready, setReady] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [addForm, setAddForm] = useState({ date: '', account: 'bca', category: '', amount: '', description: '' });
@@ -59,7 +61,14 @@ function App() {
         if ((view === 'mortgage' || account === 'house') && !mortgageData && ready) {
             fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); });
         }
-    }, [view, account, mortgageData, ready]);
+        if (!goalsData && ready) {
+            fetchJSON('/api/goals').then(d => { if (d && !d.error) setGoalsData(d); });
+        }
+    }, [view, account, mortgageData, goalsData, ready]);
+
+    const reloadGoals = useCallback(() => {
+        fetchJSON('/api/goals').then(d => { if (d && !d.error) setGoalsData(d); });
+    }, []);
 
     const prevMonth = useCallback(() => {
         setMonth(m => {
@@ -147,6 +156,7 @@ function App() {
             view === 'mortgage' && mortgageData
                 ? fetchJSON('/api/mortgage').then(d => { if (d && !d.error) setMortgageData(d); })
                 : Promise.resolve(),
+            fetchJSON('/api/goals').then(d => { if (d && !d.error) setGoalsData(d); }),
         ]).then(() => { setSimRefresh(k => k + 1); });
     }
 
@@ -258,7 +268,8 @@ function App() {
             showAccount=${view !== 'mortgage'}
         />
         <main id="content">
-            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} mortgage=${mortgageData} onOpenMortgage=${() => setView('mortgage')} />`}
+            ${view === 'summary' && html`<${SummaryView} data=${monthData} trend=${trendData} balance=${balance} categories=${categories} account=${account} mortgage=${mortgageData} onOpenMortgage=${() => setView('mortgage')} goals=${goalsData} onOpenGoals=${() => setView('goals')} />`}
+            ${view === 'goals' && html`<${GoalsView} goals=${goalsData} accounts=${accounts} onBack=${() => setView('summary')} onUpdated=${reloadGoals} />`}
             ${view === 'transactions' && html`<${TransactionView} data=${monthData} categories=${categories} onUpdated=${reloadMonth} />`}
             ${view === 'mortgage' && html`<${MortgageView} data=${mortgageData} onBack=${() => setView('summary')} />`}
             ${view === 'recurring' && html`<${RecurringView} categories=${categories} accounts=${accounts} account=${account} />`}

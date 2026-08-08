@@ -10,12 +10,15 @@ from flask import Flask, jsonify, request, send_from_directory, session
 from config import MONTHS, MORTGAGE
 from db import (
     add_recurring_expense,
+    add_goal,
+    delete_goal,
     delete_recurring_expense,
     ensure_account,
     get_accounts,
     get_balance,
     get_categories,
     get_category_id,
+    get_goals,
     get_month_end_balance,
     get_month_summary,
     get_recurring_expense,
@@ -27,6 +30,7 @@ from db import (
     pay_recurring,
     set_balance,
     unpay_recurring,
+    update_goal,
     update_recurring_expense,
 )
 from db import get_db
@@ -385,6 +389,51 @@ def api_recurring_unpay(item_id):
     if not deleted:
         return jsonify({"error": "no payment found for this month"}), 404
     return jsonify({"ok": True})
+
+
+@app.route("/api/goals")
+def api_goals_list():
+    return jsonify(get_goals())
+
+
+@app.route("/api/goals", methods=["POST"])
+def api_goals_add():
+    data = request.get_json()
+    required = ["name", "target_amount", "account"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+    target = int(data["target_amount"])
+    if target <= 0 or target > 999_999_999:
+        return jsonify({"error": "target amount must be between 1 and 999,999,999"}), 400
+    goal_id = add_goal(data)
+    return jsonify({"ok": True, "id": goal_id})
+
+
+@app.route("/api/goals/<int:goal_id>", methods=["PUT"])
+def api_goals_update(goal_id):
+    data = request.get_json()
+    required = ["name", "target_amount", "account"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"missing fields: {', '.join(missing)}"}), 400
+    target = int(data["target_amount"])
+    if target <= 0 or target > 999_999_999:
+        return jsonify({"error": "target amount must be between 1 and 999,999,999"}), 400
+    ok = update_goal(goal_id, data)
+    if not ok:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/api/goals/<int:goal_id>", methods=["DELETE"])
+def api_goals_delete(goal_id):
+    deleted = delete_goal(goal_id)
+    if not deleted:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
+
+
 
 
 if __name__ == "__main__":

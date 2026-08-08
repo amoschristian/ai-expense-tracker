@@ -6,8 +6,9 @@ import { StatsRow } from '/static/components/summary/StatsRow.js';
 import { TopCategories } from '/static/components/summary/TopCategories.js';
 import { CashFlowTrend } from '/static/components/summary/CashFlowTrend.js';
 import { Spinner } from '/static/components/Spinner.js';
+import { GoalsWidget } from '/static/components/summary/GoalsWidget.js';
 
-export function SummaryView({ data, trend, balance, categories, account, mortgage, onOpenMortgage }) {
+export function SummaryView({ data, trend, balance, categories, account, mortgage, onOpenMortgage, goals, onOpenGoals }) {
     if (!data) {
         return html`<${Spinner} text="Loading summary..." />`;
     }
@@ -18,6 +19,7 @@ export function SummaryView({ data, trend, balance, categories, account, mortgag
     return html`
         <section class="view">
             <${BalanceCard} balance=${balance} />
+            <${GoalsWidget} goals=${goals} onOpenGoals=${onOpenGoals} />
             ${account === 'house' && mortgage && html`
             <div class="card house-widget" onClick=${onOpenMortgage}>
                 <div class="card-title">House · Mortgage</div>
